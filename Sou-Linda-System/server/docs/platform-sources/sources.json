@@ -1,0 +1,44 @@
+[
+  {
+    "title": "FastAPI · seguridad",
+    "source": "https://raw.githubusercontent.com/fastapi/fastapi/master/docs/en/docs/tutorial/security/first-steps.md",
+    "documentation": "https://fastapi.tiangolo.com/tutorial/security/first-steps/",
+    "read": true,
+    "bytes": 8357
+  },
+  {
+    "title": "Starlette · TrustedHost y CORS",
+    "source": "https://raw.githubusercontent.com/Kludex/starlette/main/docs/middleware.md",
+    "documentation": "https://www.starlette.io/middleware/",
+    "read": true,
+    "bytes": 42344
+  },
+  {
+    "title": "Python · SQLite y respaldos",
+    "source": "https://raw.githubusercontent.com/python/cpython/3.12/Doc/library/sqlite3.rst",
+    "documentation": "https://docs.python.org/3.12/library/sqlite3.html",
+    "read": true,
+    "bytes": 92580
+  },
+  {
+    "title": "MDN · contextos seguros",
+    "source": "https://raw.githubusercontent.com/mdn/content/main/files/en-us/web/security/secure_contexts/index.md",
+    "documentation": "https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts",
+    "read": false,
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "title": "MDN · Service Worker",
+    "source": "https://raw.githubusercontent.com/mdn/content/main/files/en-us/web/api/service_worker_api/index.md",
+    "documentation": "https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API",
+    "read": true,
+    "bytes": 13453
+  },
+  {
+    "title": "MDN · permiso de carpeta",
+    "source": "https://raw.githubusercontent.com/mdn/content/main/files/en-us/web/api/window/showdirectorypicker/index.md",
+    "documentation": "https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker",
+    "read": true,
+    "bytes": 2718
+  }
+]

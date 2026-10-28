@@ -1,0 +1,53 @@
+[
+  {
+    "name": "home",
+    "url": "https://www.treinta.co/",
+    "final_url": "https://www.treinta.co/",
+    "status": "ok",
+    "bytes": 150387,
+    "sha256_response": "8fbf9b4d1600b83807905247ecd7555d085fa1e3c1723c2e00fae7cfdcc8f0e1",
+    "preserved_content": "Metadata y resumen en docs/referencias-treinta.md; no se redistribuye HTML ni material comercial.",
+    "recorded_utc": "2026-10-28T11:31:03.886846+00:00",
+    "fetched_date_utc": "2026-10-28"
+  },
+  {
+    "name": "ropa",
+    "url": "https://www.treinta.co/programa-para-gestion-de-tienda-de-ropa-treinta/",
+    "final_url": "https://www.treinta.co/programa-para-gestion-de-tienda-de-ropa-treinta/",
+    "fetched_utc": "2026-10-28T11:30:08.001064+00:00",
+    "bytes": 95682,
+    "status": "ok",
+    "sha256_response": "38095c7d62f98c001282fad64ce24e1135bbd3666258cf685f002018593fa9ab",
+    "preserved_content": "Metadata y resumen en docs/referencias-treinta.md; no se redistribuye HTML ni material comercial."
+  },
+  {
+    "name": "registro",
+    "url": "https://www.treinta.co/registro-ventas-gastos/",
+    "final_url": "https://www.treinta.co/registro-ventas-gastos/",
+    "fetched_utc": "2026-10-28T11:30:08.588497+00:00",
+    "bytes": 58924,
+    "status": "ok",
+    "sha256_response": "27e517e2d228c716baeb36fe103028dbc7c7db09d269a79b1a992c711b73864e",
+    "preserved_content": "Metadata y resumen en docs/referencias-treinta.md; no se redistribuye HTML ni material comercial."
+  },
+  {
+    "name": "deudas",
+    "url": "https://www.treinta.co/control-de-deudas/",
+    "final_url": "https://www.treinta.co/control-de-deudas/",
+    "fetched_utc": "2026-10-28T11:30:09.062919+00:00",
+    "bytes": 58306,
+    "status": "ok",
+    "sha256_response": "fe4cf34ce97ff4a4a9907e11abfcc9ecb784530e2fe237be5460b68ea89be028",
+    "preserved_content": "Metadata y resumen en docs/referencias-treinta.md; no se redistribuye HTML ni material comercial."
+  },
+  {
+    "name": "argentina",
+    "url": "https://www.treinta.co/ar/home/",
+    "final_url": "https://www.treinta.co/ar/home/",
+    "fetched_utc": "2026-10-28T11:30:09.569394+00:00",
+    "bytes": 123045,
+    "status": "ok",
+    "sha256_response": "42ddfddb0d4651b909edf1724cba1ea892cc11c8bfc865b114a0383ed3f63240",
+    "preserved_content": "Metadata y resumen en docs/referencias-treinta.md; no se redistribuye HTML ni material comercial."
+  }
+]

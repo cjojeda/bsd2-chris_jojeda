@@ -1,0 +1,11 @@
+node_modules/
+server/.venv/
+server/.pytest_cache/
+**/__pycache__/
+*.pyc
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+web-auth.json
+*.tsbuildinfo
+artifacts/
