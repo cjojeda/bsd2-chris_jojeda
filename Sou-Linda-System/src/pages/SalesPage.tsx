@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Ban, Check, Copy, Eye, MessageCircle, PackageCheck, ReceiptText, Search, Undo2, Wallet } from 'lucide-react';
 import { EmptyState, Field, Modal } from '../components/ui';
-import { amountInput, cents, displayDate, localDate, localMonth, money } from '../domain/format';
+import { amountInput, basisPoints, cents, currencyCode, currencySymbol, moneyStep, displayDate, localDate, localMonth, money, whatsappPhone } from '../domain/format';
 import { completeSale, payDirectCosts, recordPayment, recordRefund, releaseSale, reserveSale, returnSale, voidSale } from '../domain/services';
 import { PAYMENT_METHODS, type PaidMethod, type Sale, type SaleStatus, type Snapshot } from '../domain/types';
 
@@ -35,7 +35,7 @@ function balanceLabel(balance: number) { return balance < 0 ? `${money(-balance)
 export function saleReceipt(sale: Sale, customerName: string): string {
   const lines = ['Sou Linda System · COMPROBANTE INTERNO', sale.number, `Pedido: ${sale.date}`,
     ...(sale.completedDate ? [`Completado: ${sale.completedDate}`] : []),
-    `Clienta: ${customerName}`, `Canal: ${sale.channel}`, `Estado: ${STATE_LABELS[sale.status]}`, ''];
+    `Clienta: ${customerName}`, `Canal: ${sale.channel}`, `Estado: ${STATE_LABELS[sale.status]}`, `Moneda: ${currencyCode()}`, ''];
   for (const item of sale.items) {
     lines.push(`${item.quantity} × ${item.productName} · ${item.variantLabel}`, `  ${money(item.netTotal)}`);
     if (item.returnedQuantity) lines.push(`  Unidades devueltas: ${item.returnedQuantity}`);
@@ -76,7 +76,7 @@ export function CollectPaymentModal({ sale, data, notify, onClose, refund = fals
         const id = commandFor(command, { mode, saleId: sale.id, value, method, date });
         await recordRefund(sale.id, value, method, date, id);
       } else {
-        const rate = cents(commission);
+        const rate = basisPoints(commission);
         if (rate > 10_000) throw new Error('La comisión debe estar entre 0 y 100 %.');
         const id = commandFor(command, { mode, saleId: sale.id, value, method, date, rate });
         await recordPayment(sale.id, value, method, date, rate, id);
@@ -94,7 +94,7 @@ export function CollectPaymentModal({ sale, data, notify, onClose, refund = fals
         <button type="button" className={mode === 'refund' ? 'active' : ''} disabled={saving || balance >= 0} onClick={() => changeMode('refund')}>Reembolso</button>
       </div>
       <div className="payment-balance"><span className="muted">{mode === 'refund' ? 'Crédito a favor disponible' : 'Saldo pendiente del pedido'}</span><strong>{money(maximum)}</strong></div>
-      <Field label={mode === 'refund' ? 'Importe a reembolsar (ARS)' : 'Importe a cobrar (ARS)'} hint="Ingresá un movimiento real de dinero; se admiten importes parciales."><input required autoFocus inputMode="decimal" type="number" min="0.01" step="0.01" max={amountInput(maximum)} value={amount} disabled={saving} onChange={event => setAmount(event.target.value)} /></Field>
+      <Field label={`${mode === 'refund' ? 'Importe a reembolsar' : 'Importe a cobrar'} (${currencySymbol()})`} hint="Ingresá un movimiento real de dinero; se admiten importes parciales."><input required autoFocus inputMode="decimal" type="number" min={moneyStep()} step={moneyStep()} max={amountInput(maximum)} value={amount} disabled={saving} onChange={event => setAmount(event.target.value)} /></Field>
       <div className="form-grid">
         <Field label="Medio de pago real"><select value={method} disabled={saving} onChange={event => setMethod(event.target.value as PaidMethod)}>{PAID_METHODS.map(value => <option key={value}>{value}</option>)}</select></Field>
         <Field label="Fecha del movimiento"><input required type="date" min={sale.date} value={date} disabled={saving} onChange={event => setDate(event.target.value)} /></Field>
@@ -238,7 +238,7 @@ export default function SalesPage({ data, notify }: Props) {
     catch { notify('El navegador no permitió copiar. Podés seleccionar el texto del comprobante o prepararlo en WhatsApp.', 'error'); }
   }
   function whatsappUrl(sale: Sale) {
-    const phone = customers.get(sale.customerId || '')?.phone.replace(/\D/g, '') || '';
+    const phone = whatsappPhone(customers.get(sale.customerId || '')?.phone || '');
     return `https://wa.me/${phone.length >= 8 ? phone : ''}?text=${encodeURIComponent(saleReceipt(sale, nameFor(sale, data)))}`;
   }
 

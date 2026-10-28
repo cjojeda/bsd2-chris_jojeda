@@ -25,6 +25,7 @@ from starlette.background import BackgroundTask
 from openpyxl.utils.exceptions import InvalidFileException
 
 from .db import SCHEMA_VERSION, TABLES
+from .currency import currency_code, initialize_business_currency
 from .transfer import (
     BACKUP_VERSION, MAX_BACKUP_BYTES, MAX_IMPORT_BYTES, SALE_COLUMNS, VARIANT_COLUMNS,
     ImportPreview, apply_import, export_json, export_sqlite, export_table, make_backup,
@@ -192,8 +193,9 @@ def build_transfer_router(require_admin) -> APIRouter:
         try:
             document = _load_backup(path)
             tables = validate_backup(document)
+            restored_currency = next((row["value"] for row in tables["meta"] if row["key"] == "currency"), "ARS")
             return {"counts": {name: len(tables[name]) for name in TABLES}, "schemaVersion": SCHEMA_VERSION,
-                    "formatVersion": BACKUP_VERSION}
+                    "formatVersion": BACKUP_VERSION, "currency": restored_currency}
         finally:
             shutil.rmtree(folder, ignore_errors=True)
 
@@ -203,9 +205,16 @@ def build_transfer_router(require_admin) -> APIRouter:
             raise HTTPException(400, "Confirmá explícitamente el reemplazo de la base actual.")
         folder, path = _json_upload(body.content)
         try:
-            result = restore_json(request.app.state.db, path)
+            db = request.app.state.db
+            # Metadata initialization belongs to the same transaction as the
+            # replacement. A legacy restore keeps its original ARS values;
+            # stamping the currency must not partially replace an active base.
+            with db.transaction():
+                result = restore_json(db, path)
+                restored_currency = initialize_business_currency(db)
             _plans(request).clear()
-            return {"counts": result["counts"], "previousBackup": result["previous_backup"]}
+            counts = {name: db.connection.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0] for name in TABLES}
+            return {"counts": counts, "previousBackup": result["previous_backup"], "currency": restored_currency}
         finally:
             shutil.rmtree(folder, ignore_errors=True)
 
@@ -283,7 +292,8 @@ def build_transfer_router(require_admin) -> APIRouter:
             db.connection.execute("PRAGMA defer_foreign_keys=ON")
             for name in reversed(TABLES):
                 db.connection.execute(f'DELETE FROM "{name}"')
+            initialize_business_currency(db)
         _plans(request).clear()
-        return {"cleared": True, "previousBackup": str(previous)}
+        return {"cleared": True, "previousBackup": str(previous), "currency": currency_code(db)}
 
     return router

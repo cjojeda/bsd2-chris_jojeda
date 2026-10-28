@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeftRight, ArrowUpRight, Check, ChartNoAxesCombined, DatabaseBackup, Download, Home, Layers3, Menu, Package, Plus, ReceiptText, RefreshCw, ShieldCheck, ShoppingBag, Sparkles, Users, Wallet, X } from 'lucide-react';
 import { seedDemo } from '../data/demo';
 import { downloadBackup } from '../data/transfer';
-import { localMonth } from '../domain/format';
+import { localMonth, currencyCode } from '../domain/format';
 import { Modal } from '../components/ui';
 import MobileAccess from '../components/MobileAccess';
 import InventoryPage from '../pages/InventoryPage';
@@ -67,14 +67,15 @@ export default function AgileApp(){
     {drawer&&<button className="ag-drawer-shade" aria-label="Cerrar menú" onClick={()=>setDrawer(false)}/>}
     <aside className={`ag-sidebar ${drawer?'is-open':''}`}>
       <a className="ag-brand" href="/agil" onClick={event=>{event.preventDefault();go('home');}}><span className="ag-logo">S<span>✧</span></span><div><strong>Sou Linda</strong><small>SYSTEM</small></div></a>
-      <div className="ag-business"><span className="ag-business-avatar"><ShoppingBag size={18}/></span><div><strong>Mi lencería</strong><small>Mi negocio · ARS</small></div><span className="ag-business-dot"/></div>
+      <div className="ag-business"><span className="ag-business-avatar"><ShoppingBag size={18}/></span><div><strong>Mi lencería</strong><small>Mi negocio · {currencyCode()}</small></div><span className="ag-business-dot"/></div>
       <button className="ag-sale-button" onClick={()=>go('pos')}><Plus size={20}/><span>Registrar venta</span><kbd>F2</kbd></button>
       <p className="ag-nav-heading">MI NEGOCIO</p>
       <nav aria-label="Navegación de Sou Linda Ágil">{navigation.map(({page:target,label,icon:Icon})=><button key={target} className={`ag-nav-item ${activePage===target?'is-active':''}`} onClick={()=>go(target)} aria-current={activePage===target?'page':undefined}><Icon size={19}/><span>{label}</span>{target==='inventory'&&attention>0&&<span className="ag-nav-count">{attention}</span>}</button>)}</nav>
-      <div className="ag-sidebar-bottom"><div className="ag-local-note"><ShieldCheck size={20}/><div><strong>Tu negocio queda con vos</strong><p>Datos guardados en tu notebook.</p></div></div><a className="ag-switch" href="/"><ArrowLeftRight size={16}/><span>Probar vista Clásica</span><ArrowUpRight size={14}/></a><div className="ag-edition"><span className="ag-edition-dot"/>Vista Ágil <span>v0.4.0</span></div></div>
+      <div className="ag-sidebar-bottom"><div className="ag-local-note"><ShieldCheck size={20}/><div><strong>Tu negocio queda con vos</strong><p>Datos guardados en tu notebook.</p></div></div><a className="ag-switch" href="/"><ArrowLeftRight size={16}/><span>Probar vista Clásica</span><ArrowUpRight size={14}/></a><div className="ag-edition"><span className="ag-edition-dot"/>Vista Ágil <span>v0.5.0</span></div></div>
     </aside>
     <div className="ag-body"><header className="ag-topbar"><div className="ag-crumb"><button className="icon-btn ag-menu-toggle" aria-label="Abrir menú" onClick={()=>setDrawer(true)}><Menu size={22}/></button><span>Mi lencería</span><span>/</span><strong>{title}</strong></div><div className="ag-topbar-actions"><span className={`ag-connection ${error?'is-offline':''}`}><i/>{error?'Motor sin conexión':'Guardado en notebook'}</span><button className="ag-backup-top" onClick={backup}><Download size={16}/><span>Respaldar</span></button><span className="ag-profile" aria-label="Negocio local">SL</span></div></header>
       <main className={`ag-main ${page==='pos'?'ag-main-pos':''}`}>
+        {currencyCode()==='ARS'&&<div className="info-banner report-warning" role="status">Esta base conserva importes de la versión en pesos argentinos (ARS). No se convirtieron a guaraníes. Para empezar la tienda paraguaya, usá una base nueva en PYG y conservá un respaldo de esta base.</div>}
         {error&&<div className="report-error" role="alert">{error}<button className="text-button" onClick={retry}>Reintentar</button></div>}
         {isDemo&&<div className="ag-demo"><Sparkles size={15}/><span>Datos de ejemplo. Explorá todas las funciones antes de cargar tu negocio.</span><button onClick={()=>go('backup')}>Administrar demo<ArrowUpRight size={14}/></button></div>}
         {updateAvailable&&<div className="info-banner">Hay una actualización de la interfaz. Respaldá los datos y cerrá las ventanas del sistema antes de volver a abrirlo.</div>}

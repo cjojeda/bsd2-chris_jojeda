@@ -18,6 +18,7 @@ try{
   const read=path=>page.evaluate(async url=>{const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json();},path);
   const before=await read('/api/snapshot');
   assert(before.settings.some(row=>row.key==='demo'&&row.value==='true'),'La prueba requiere una base marcada como demostración');
+  const quantum=before.settings.some(row=>row.key==='currency'&&row.value==='PYG')?100n:1n;
   const variant=before.variants.find(row=>row.active&&row.available>0&&row.stock>0);
   assert(variant,'Debe haber stock de prueba disponible');
   await page.getByRole('button',{name:'Punto de venta',exact:true}).click();
@@ -36,10 +37,10 @@ try{
   await page.getByLabel('Tipo de descuento',{exact:true}).selectOption('percent');
   await page.getByLabel('Descuento (%)',{exact:true}).fill('10');
   await page.getByLabel('Comisión del cobro (%)',{exact:true}).fill('3');
-  await page.getByLabel('Packaging (ARS)',{exact:true}).fill('50');
-  await page.getByLabel('Envío asumido (ARS)',{exact:true}).fill('100');
+  await page.getByLabel(/^Packaging \(/).fill('50');
+  await page.getByLabel(/^Envío asumido \(/).fill('100');
   await page.getByLabel('Envío y packaging se pagan al completar',{exact:true}).check();
-  const cpp=Number((2n*BigInt(variant.inventoryValue)+BigInt(variant.stock))/(2n*BigInt(variant.stock)));
+  const cpp=Number(((2n*BigInt(variant.inventoryValue)+BigInt(variant.stock)*quantum)/(2n*BigInt(variant.stock)*quantum))*quantum);
   const expected={total:180000,cost:cpp,commission:5400,shipping:10000,packaging:5000};
   const expectedProfit=expected.total-expected.cost-expected.commission-expected.shipping-expected.packaging;
   const saleResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/sales'&&response.request().method()==='POST');

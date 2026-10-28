@@ -1,6 +1,9 @@
 import { useEffect, useReducer, useState } from 'react';
 import { api } from './api';
+import { configureCurrency } from '../domain/format';
 import type { Channel, PaidMethod } from '../domain/types';
+
+export type ReportCurrency = 'PYG' | 'ARS';
 
 export interface ChannelReport {
   channel: Channel;
@@ -18,6 +21,7 @@ export interface ChannelReport {
 }
 
 export interface MonthlyReport {
+  currency: ReportCurrency;
   month: string;
   revenue_cents: number;
   cogs_cents: number;
@@ -61,6 +65,7 @@ export interface CashClosingReport {
 }
 
 export interface DailyReport {
+  currency: ReportCurrency;
   business_date: string;
   by_method: { method: PaidMethod; income_cents: number; expense_cents: number; balance_cents: number }[];
   expected_cash_cents: number;
@@ -101,11 +106,26 @@ function validateProfitAvailability(record: Record<string, unknown>, fields: str
   const incomplete = Number(record.incomplete_cost_count) > 0;
   if (fields.some(field => incomplete !== (record[field] === null))) throw new Error('El estado de costos históricos del informe no coincide con su ganancia.');
 }
+function reportCurrency(value: Record<string, unknown>): ReportCurrency {
+  // Responses produced before currency metadata belonged to the ARS edition.
+  // Keeping that denomination avoids reinterpreting an old amount as guaraníes.
+  if (value.currency === undefined) return 'ARS';
+  if (value.currency !== 'PYG' && value.currency !== 'ARS') throw new Error('La notebook devolvió una moneda desconocida. No se reinterpretaron los importes.');
+  return value.currency;
+}
+function requireWholeGuaranies(record: Record<string, unknown>, currency: ReportCurrency, fields: string[]) {
+  if (currency !== 'PYG') return;
+  for (const field of fields) {
+    if (record[field] !== null && Number(record[field]) % 100 !== 0) throw new Error(`El informe en guaraníes contiene una fracción inválida (${field}). No se redondeó un saldo al mostrarlo.`);
+  }
+}
 
 /** Validate transport precision; the Python/SQLite engine remains authoritative. */
 export function validateMonthlyReport(value: unknown): MonthlyReport {
   if (!isRecord(value) || !validMonth(value.month)) throw new Error('La notebook devolvió un informe mensual inválido.');
+  const currency = reportCurrency(value);
   requireIntegers(value, ['revenue_cents', 'cogs_cents', 'commission_cents', 'shipping_cents', 'packaging_cents', 'operating_cents', 'loss_cents', 'gross_profit_cents', 'net_profit_cents', 'known_result_cents', 'incomplete_cost_count', 'sales_count', 'average_ticket_cents', 'new_sales_cents', 'discount_cents', 'shared_expense_cents', 'unallocated_expense_cents', 'previous_revenue_cents', 'outstanding_cents', 'customer_credit_cents', 'advances_cents'], ['gross_profit_cents', 'net_profit_cents']);
+  requireWholeGuaranies(value, currency, ['revenue_cents', 'cogs_cents', 'commission_cents', 'shipping_cents', 'packaging_cents', 'operating_cents', 'loss_cents', 'gross_profit_cents', 'net_profit_cents', 'known_result_cents', 'average_ticket_cents', 'new_sales_cents', 'discount_cents', 'shared_expense_cents', 'unallocated_expense_cents', 'previous_revenue_cents', 'outstanding_cents', 'customer_credit_cents', 'advances_cents']);
   requireCounts(value, ['incomplete_cost_count', 'sales_count']);
   validateProfitAvailability(value, ['gross_profit_cents', 'net_profit_cents']);
   if (!Array.isArray(value.channels) || !Array.isArray(value.daily) || !['none', 'net_revenue_proportion'].includes(String(value.allocation_mode))) throw new Error('El detalle del informe mensual está incompleto.');
@@ -114,6 +134,7 @@ export function validateMonthlyReport(value: unknown): MonthlyReport {
     if (!isRecord(row) || typeof row.channel !== 'string' || !['Instagram', 'WhatsApp', 'TikTok', 'Local'].includes(row.channel) || channels.has(row.channel)) throw new Error('El informe contiene un canal desconocido o repetido.');
     channels.add(row.channel);
     requireIntegers(row, ['revenue_cents', 'cogs_cents', 'commission_cents', 'shipping_cents', 'packaging_cents', 'attributed_expense_cents', 'contribution_cents', 'shared_allocated_cents', 'profit_cents', 'incomplete_cost_count', 'sales_count'], ['contribution_cents', 'profit_cents']);
+    requireWholeGuaranies(row, currency, ['revenue_cents', 'cogs_cents', 'commission_cents', 'shipping_cents', 'packaging_cents', 'attributed_expense_cents', 'contribution_cents', 'shared_allocated_cents', 'profit_cents']);
     requireCounts(row, ['incomplete_cost_count', 'sales_count']);
     validateProfitAvailability(row, ['contribution_cents', 'profit_cents']);
   }
@@ -122,31 +143,36 @@ export function validateMonthlyReport(value: unknown): MonthlyReport {
     if (!isRecord(row) || !validDate(row.date) || !row.date.startsWith(`${value.month}-`) || dates.has(row.date)) throw new Error('El informe contiene una fecha diaria inválida o repetida.');
     dates.add(row.date);
     requireIntegers(row, ['total_cents']);
+    requireWholeGuaranies(row, currency, ['total_cents']);
   }
   if (channels.size !== 4 || dates.size !== daysInMonth(value.month)) throw new Error('Faltan canales o días en el informe mensual.');
-  return value as unknown as MonthlyReport;
+  return { ...value, currency } as unknown as MonthlyReport;
 }
 
 export function validateDailyReport(value: unknown): DailyReport {
   if (!isRecord(value) || !validDate(value.business_date) || !Array.isArray(value.by_method)) throw new Error('El informe de caja está incompleto.');
+  const currency = reportCurrency(value);
   requireIntegers(value, ['expected_cash_cents', 'credit_sales_cents', 'receipts_cents', 'expenses_cents', 'closing_count', 'late_movements_count']);
+  requireWholeGuaranies(value, currency, ['expected_cash_cents', 'credit_sales_cents', 'receipts_cents', 'expenses_cents']);
   requireCounts(value, ['closing_count', 'late_movements_count']);
   const methods = new Set<string>();
   for (const row of value.by_method) {
     if (!isRecord(row) || typeof row.method !== 'string' || !['Efectivo', 'Transferencia', 'Tarjeta', 'QR'].includes(row.method) || methods.has(row.method)) throw new Error('El informe contiene un medio de pago desconocido o repetido.');
     methods.add(row.method);
     requireIntegers(row, ['income_cents', 'expense_cents', 'balance_cents']);
+    requireWholeGuaranies(row, currency, ['income_cents', 'expense_cents', 'balance_cents']);
   }
   if (methods.size !== 4) throw new Error('Faltan medios de pago en el informe de caja.');
   if (value.closing !== null) {
     if (!isRecord(value.closing) || value.closing.business_date !== value.business_date) throw new Error('El arqueo guardado no es válido.');
     requireIntegers(value.closing, ['opening_cents', 'expected_cents', 'counted_cents', 'difference_cents', 'cutoff_sequence']);
+    requireWholeGuaranies(value.closing, currency, ['opening_cents', 'expected_cents', 'counted_cents', 'difference_cents']);
   }
-  return value as unknown as DailyReport;
+  return { ...value, currency } as unknown as DailyReport;
 }
 
 interface ReportState<T> { path: string; report: T | null; loading: boolean; error: string | null; updatedAt: Date | null }
-function useReport<T>(path: string | null, validate: (value: unknown) => T) {
+function useReport<T extends {currency: ReportCurrency}>(path: string | null, validate: (value: unknown) => T) {
   const [revision, refresh] = useReducer((value: number) => value + 1, 0);
   const [state, setState] = useState<ReportState<T>>({ path: '', report: null, loading: true, error: null, updatedAt: null });
   useEffect(() => {
@@ -167,7 +193,7 @@ function useReport<T>(path: string | null, validate: (value: unknown) => T) {
     setState(previous => ({ path, report: previous.path === path ? previous.report : null, loading: true, error: null, updatedAt: previous.path === path ? previous.updatedAt : null }));
     void api<unknown>(path, { signal: controller.signal })
       .then(validate)
-      .then(report => { if (active) setState({ path, report, loading: false, error: null, updatedAt: new Date() }); })
+      .then(report => { if (active) { configureCurrency(report.currency); setState({ path, report, loading: false, error: null, updatedAt: new Date() }); } })
       .catch((error: unknown) => {
         if (!active || controller.signal.aborted) return;
         setState(previous => ({ ...previous, path, loading: false, error: error instanceof Error ? error.message : 'No pudimos consultar los datos de la notebook.' }));

@@ -62,7 +62,9 @@ def test_lifespan_opens_and_closes_database_in_its_event_loop(tmp_path):
         response = client.get('/api/session')
         cookie = response.headers['set-cookie'].lower()
         assert 'httponly' in cookie and 'samesite=strict' in cookie
-        assert client.get('/api/snapshot').json()['sales'] == []
+        snapshot = client.get('/api/snapshot').json()
+        assert snapshot['sales'] == []
+        assert {'key': 'currency', 'value': 'PYG'} in snapshot['settings']
     # The database was created/used on TestClient's loop thread and is now closed.
     from sadi_local.db import Database
     db = Database(tmp_path / 'db.sqlite3')
@@ -150,6 +152,7 @@ def test_pairing_stores_only_hash_and_mobile_report_contains_only_aggregates(api
         response = client.get('/api/mobile/reports?month=2026-10', headers={'Authorization': 'Bearer ' + pair['token']})
         assert response.status_code == 200
         data = response.json()
+        assert data['currency'] == 'PYG'
         assert data['revenue_cents'] == 360000
         assert data['cogs_cents'] == 240000
         assert data['net_profit_cents'] == 84200
@@ -276,6 +279,10 @@ def test_receipt_payment_expense_draft_and_cash_closing_endpoints(api):
     assert report['expected_cash_cents'] == 55000
     assert client.post('/api/cash-close', headers=headers,
         json={'date': '2026-10-02', 'openingCash': 300000, 'countedCash': 55000}).status_code == 200
+    assert report['currency'] == 'PYG'
+    assert client.get('/api/reports/daily?date=2026-10-02&opening=1').status_code == 400
+    assert client.post('/api/cash-close', headers=headers,
+        json={'date': '2026-10-02', 'openingCash': 300000, 'countedCash': 55001}).status_code == 400
     draft = {'cart': [{'variantId': v, 'quantity': 1}], 'commission': '3'}
     assert client.post('/api/drafts/pos', headers=headers, json={'draft': draft}).status_code == 200
     assert client.get('/api/drafts/pos').json()['draft'] == draft

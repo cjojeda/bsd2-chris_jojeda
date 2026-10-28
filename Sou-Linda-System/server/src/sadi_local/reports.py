@@ -9,7 +9,8 @@ import re
 from uuid import uuid4
 
 from .constants import CHANNELS, PAYMENT_METHODS, MAX_CENTS
-from .money import allocate, integer, round_ratio
+from .money import integer
+from .currency import allocate_money, round_money_ratio, validate_amount
 
 
 def _date(value: str) -> str:
@@ -116,7 +117,7 @@ def monthly_report(db, month: str, allocate_shared: bool = False) -> dict:
         weights = [max(rows[channel]["revenue_cents"], 0) for channel in CHANNELS]
         if sum(weights):
             sign = 1 if unassigned > 0 else -1
-            assigned = [sign * value for value in allocate(abs(unassigned), weights)]
+            assigned = [sign * value for value in allocate_money(db, abs(unassigned), weights)]
     for index, channel in enumerate(CHANNELS):
         row = rows[channel]
         contribution = row["revenue_cents"] - row["cogs_cents"] - row["commission_cents"] - row["shipping_cents"] - row["packaging_cents"]
@@ -135,7 +136,7 @@ def monthly_report(db, month: str, allocate_shared: bool = False) -> dict:
         "net_profit_cents": None if missing else net, "known_result_cents": net,
         "incomplete_cost_count": len(missing), "incomplete_order_ids": sorted(missing),
         "sales_count": len(new_orders),
-        "average_ticket_cents": round_ratio(sales_total, len(new_orders)) if new_orders else 0,
+        "average_ticket_cents": round_money_ratio(db, sales_total, len(new_orders)) if new_orders else 0,
         "new_sales_cents": sales_total,
         "discount_cents": sum(order.get("discount_cents", 0) for order in new_orders),
         "channels": sorted(rows.values(), key=lambda row: (row["profit_cents"] is None, -(row["profit_cents"] or 0), row["channel"])),
@@ -150,7 +151,7 @@ def monthly_report(db, month: str, allocate_shared: bool = False) -> dict:
 
 def daily_report(db, business_date: str, opening_cents: int = 0) -> dict:
     day = _date(business_date)
-    integer(opening_cents, "Fondo inicial")
+    validate_amount(db, opening_cents, "Fondo inicial")
     data = db.snapshot()
     entries = [entry for entry in data.get("cash_entries", []) if entry["business_date"] == day]
     rows = []
@@ -175,8 +176,8 @@ def daily_report(db, business_date: str, opening_cents: int = 0) -> dict:
 def close_cash(db, business_date: str, opening_cents: int, counted_cents: int, note: str = "", *, allow_revision: bool = False) -> dict:
     """Append a cash closing; explicit revision retains all earlier snapshots."""
     day = _date(business_date)
-    integer(opening_cents, "Fondo inicial")
-    integer(counted_cents, "Efectivo contado")
+    validate_amount(db, opening_cents, "Fondo inicial")
+    validate_amount(db, counted_cents, "Efectivo contado")
     if not isinstance(note, str) or len(note) > 2000:
         raise ValueError("La nota del cierre puede tener hasta 2.000 caracteres.")
     with db.transaction():

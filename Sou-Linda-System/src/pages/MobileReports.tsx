@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useState } from 'react';
 import { AlertCircle, Eye, Laptop, RefreshCw, ShieldCheck, Wifi } from 'lucide-react';
-import { displayDate, localMonth, money } from '../domain/format';
+import { configureCurrency, displayDate, localMonth, money } from '../domain/format';
 import { validateMonthlyReport, type MonthlyReport } from '../data/reports';
 
 interface MobileAccess { token: string | null; storageWarning: boolean }
@@ -59,7 +59,7 @@ function useMobileReport(token: string | null, month: string) {
         if (!response.ok) throw new Error('La notebook no pudo preparar el informe. Volvé a intentar en unos instantes.');
         const report = validateMonthlyReport(await response.json());
         if (report.month !== month) throw new Error('La notebook devolvió otro período. Volvé a seleccionar el mes.');
-        if (active) setState({ month, report, loading: false, error: null, revoked: false, updatedAt: new Date() });
+        if (active) { configureCurrency(report.currency); setState({ month, report, loading: false, error: null, revoked: false, updatedAt: new Date() }); }
       } catch (error) {
         if (!active || controller?.signal.aborted) return;
         const message = error instanceof TypeError ? 'No podemos conectar con la notebook. Comprobá que Sou Linda System siga abierto y que ambos dispositivos estén en la misma Wi-Fi.' : error instanceof Error ? error.message : 'No se pudo actualizar el informe desde la notebook.';
@@ -83,7 +83,7 @@ export default function MobileReports() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const reportState = useMobileReport(access.token, month);
   const report = reportState.report;
-  const lastUpdate = reportState.updatedAt?.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const lastUpdate = reportState.updatedAt?.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const selected = report?.daily.find(row => row.date === selectedDay);
   useEffect(() => {
     // A newly scanned QR can replace the fragment in an already open tab.
@@ -100,7 +100,8 @@ export default function MobileReports() {
       {reportState.error && <div className="info-banner report-error mobile-report-error" role="alert"><AlertCircle size={19} /><div><strong>{reportState.revoked ? 'Necesitás un acceso nuevo' : 'No pudimos actualizar'}</strong><p>{reportState.error}</p>{report && <small>Se muestra la última consulta recibida, que puede estar desactualizada.</small>}</div></div>}
       {!report && reportState.loading && <div className="panel"><div className="empty" role="status"><RefreshCw size={28} /><h2>Consultando la notebook…</h2><p>Estamos leyendo el resultado del mes seleccionado.</p></div></div>}
       {report && <>
-        <div className="mobile-report-connection"><Wifi size={14} /><span>{reportState.loading ? 'Actualizando desde la notebook…' : `Última consulta: ${lastUpdate}`}</span></div>
+        <div className="mobile-report-connection"><Wifi size={14} /><span>{reportState.loading ? 'Actualizando desde la notebook…' : `Última consulta: ${lastUpdate}`} · {report.currency === 'PYG' ? 'PYG · Guaraníes' : 'ARS · Pesos argentinos'}</span></div>
+        {report.currency === 'ARS' && <div className="info-banner report-warning" role="status"><AlertCircle size={18} /><span>Este informe conserva pesos argentinos (ARS) de una base anterior. Sus importes requieren una migración explícita antes de usar esa base en guaraníes.</span></div>}
         {report.incomplete_cost_count > 0 && <div className="info-banner report-warning" role="status"><AlertCircle size={18} /><span>{report.incomplete_cost_count} operaciones sin costo histórico completo. La ganancia real sigue pendiente.</span></div>}
         <div className="mobile-report-stats"><MobileStat label="Ventas netas" value={money(report.revenue_cents)} note="Después de descuentos y devoluciones" /><MobileStat label="Ganancia neta de gestión" value={report.net_profit_cents === null ? 'Incompleta' : money(report.net_profit_cents)} note="Antes de impuestos no registrados" featured /><MobileStat label="Ticket promedio" value={money(report.average_ticket_cents)} note={`${report.sales_count} ventas nuevas completadas`} /><MobileStat label="Mercadería vendida" value={money(report.cogs_cents)} note="CPP histórico; no es una salida de caja de hoy" /></div>
         <section className="panel"><div className="panel-head"><div><h2>El pulso del mes</h2><p>Tocá una barra para ver ventas y devoluciones de ese día.</p></div></div><MobileDailyChart rows={report.daily} selectedDay={selectedDay} select={setSelectedDay} /><div className="mobile-chart-detail">{selected ? <><span>{displayDate(selected.date)}</span><strong>{money(selected.total_cents)}</strong></> : <span>Las devoluciones pueden producir días negativos.</span>}</div></section>

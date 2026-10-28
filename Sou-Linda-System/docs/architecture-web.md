@@ -4,7 +4,7 @@ Esta es la arquitectura de la edición web local. La notebook ejecuta Python y c
 
 El [SQL ejecutado por el motor](../server/src/sadi_local/schema.sql) es la fuente de verdad del esquema. Los documentos iniciales de IndexedDB y el directorio `desktop/` corresponden a etapas anteriores y no forman parte del arranque de esta edición.
 
-La edición 0.4 agrega una [vista Ágil](alternativa-agil.md) en `/agil`, junto a la Clásica en `/`. Comparten API, sesiones, operaciones y base. Las capacidades públicas de Treinta se usaron como [referencia funcional](referencias-treinta.md); el diseño y la identidad son propios de Sou Linda System.
+La edición 0.5 usa PYG para negocios nuevos y conserva la identificación de las bases anteriores. La edición 0.4 agregó una [vista Ágil](alternativa-agil.md) en `/agil`, junto a la Clásica en `/`. Comparten API, sesiones, operaciones y base. Las capacidades públicas de Treinta se usaron como [referencia funcional](referencias-treinta.md); el diseño y la identidad son propios de Sou Linda System.
 
 ## Componentes y límites
 
@@ -32,9 +32,11 @@ flowchart LR
 
 La ejecución diaria no requiere Node.js, Qt, Electron ni un servidor externo de base de datos. Node.js se utiliza para desarrollar y compilar `dist/`; Python 3.12 o posterior ejecuta el paquete entregado. La primera instalación descarga las dependencias Python. Luego las operaciones normales funcionan sin Internet; WhatsApp depende de su servicio y conectividad.
 
+La política de [guaraníes y compatibilidad](guaranies.md) distingue moneda, escala interna y redondeo. La moneda se conserva en `meta.currency` y se proyecta en los reportes, incluidos los del celular.
+
 ## Modelo relacional
 
-Los identificadores de dominio son `TEXT`; los importes son centavos enteros `INTEGER`. Las tablas son SQLite `STRICT`. `PK` indica clave primaria, `FK` una relación declarada y `?` un campo que acepta `NULL`.
+Los identificadores de dominio son `TEXT`; los importes usan punto fijo `INTEGER` con escala técnica 100. En PYG se aceptan y reconocen guaraníes enteros (múltiplos de 100 en esa escala). Las tablas son SQLite `STRICT`. `PK` indica clave primaria, `FK` una relación declarada y `?` un campo que acepta `NULL`.
 
 ```mermaid
 erDiagram
@@ -116,9 +118,9 @@ Los libros económicos, de caja y de movimientos se agregan mediante los servici
 
 ## Motor financiero exacto
 
-Los importes admiten hasta `9.000.000.000.000.000` centavos por campo validado. Python usa enteros y la interfaz valida que las respuestas sean enteros seguros; un importe de pantalla no se considera autoridad de cálculo. Los porcentajes se guardan en puntos básicos: `1000 bps = 10 %`, `300 bps = 3 %`.
+Los importes admiten hasta `9.000.000.000.000.000` unidades internas de escala 100 por campo validado. Python usa enteros y la interfaz valida que las respuestas sean enteros seguros; un importe de pantalla no se considera autoridad de cálculo. Los porcentajes se guardan en puntos básicos: `1000 bps = 10 %`, `300 bps = 3 %`.
 
-### CPP y asignación de centavos
+### CPP y asignación de importes
 
 ```text
 Valor tras una compra = valor anterior + costo total de la compra
@@ -126,9 +128,9 @@ Unidades tras la compra = unidades anteriores + unidades recibidas
 CMV de la salida = redondeo(valor vigente × cantidad vendida / unidades físicas)
 ```
 
-El redondeo es racional a centavos, no una multiplicación acumulada de precios unitarios redondeados. La última salida consume el valor residual completo. Las reservas no cambian el denominador físico ni el valor. Cada línea completada fija su `cogs_cents`; las compras posteriores no reescriben ventas anteriores.
+En PYG el redondeo es racional al guaraní más cercano, no una multiplicación acumulada de precios unitarios redondeados. La última salida consume el valor residual completo. Las reservas no cambian el denominador físico ni el valor. Cada línea completada fija su `cogs_cents`; las compras posteriores no reescriben ventas anteriores.
 
-El descuento fijo o porcentual se calcula sobre el subtotal y se distribuye entre líneas por restos mayores, conservando cada centavo. Reduce `net_cents`, sin alterar CPP ni CMV.
+El descuento fijo o porcentual se calcula sobre el subtotal y se distribuye entre líneas por restos mayores, conservando el total en guaraníes. Reduce `net_cents`, sin alterar CPP ni CMV.
 
 ```text
 Ganancia bruta = ingreso neto de descuento − CMV histórico
@@ -137,7 +139,7 @@ Resultado mensual = ingresos netos del período − CMV − comisiones − enví
                     − gastos operativos − pérdidas de inventario
 ```
 
-Ejemplo verificado: 10 unidades a $1.000 más 10 a $1.400 dan CPP de $1.200. Dos prendas a $2.000, con 10 % de descuento, comisión del 3 %, envío de $200 y empaque de $50, producen ingreso de $3.600, CMV de $2.400, comisión de $108 y resultado de venta de **$842** antes de gastos operativos.
+Ejemplo verificado del motor: 10 unidades a ₲ 1.000 más 10 a ₲ 1.400 dan CPP de ₲ 1.200. Dos prendas a ₲ 2.000, con 10 % de descuento, comisión del 3 %, envío de ₲ 200 y empaque de ₲ 50, producen ingreso de ₲ 3.600, CMV de ₲ 2.400, comisión de ₲ 108 y resultado de venta de **₲ 842** antes de gastos operativos.
 
 La comisión se reconoce en la fecha del cobro efectivo y sobre el importe cobrado. En un crédito sin cobrar, no se inventa una comisión pagada; la estimación del POS puede diferir hasta registrar los cobros. Envío y empaque se reconocen al completar y salen de caja únicamente cuando se registran pagados.
 
@@ -147,7 +149,7 @@ Los reportes suman `economic_entries` por `business_date`. Devolver hoy una vent
 
 El ticket promedio divide el total neto de las ventas nuevas completadas entre su cantidad. Las devoluciones se muestran en los ingresos del período y pueden producir días negativos, sin transformarse en ventas nuevas. Los saldos por cobrar, crédito a favor y anticipos son del historial completo y se rotulan de ese modo.
 
-Por canal se muestran contribución después de costos directos y resultado después de gastos atribuibles. Los gastos compartidos quedan separados de forma predeterminada. Un prorrateo opcional los reparte por ingresos netos positivos de los canales, conserva signo y centavos y deja sin asignar el gasto cuando no existe una base positiva. No se declara un canal más rentable con costos incompletos.
+Por canal se muestran contribución después de costos directos y resultado después de gastos atribuibles. Los gastos compartidos quedan separados de forma predeterminada. Un prorrateo opcional los reparte por ingresos netos positivos de los canales, conserva signo y guaraníes y deja sin asignar el gasto cuando no existe una base positiva. No se declara un canal más rentable con costos incompletos.
 
 Una venta histórica con `cogs_cents = NULL` mantiene el resultado real **incompleto**. La suma de costos conocidos puede mostrarse como dato parcial, pero la ganancia bruta/neta y el resultado del canal correspondiente son `NULL`, no cero. Antes de importar conviene completar el costo histórico en el archivo; esta entrega no sustituye ese dato por el costo actual.
 

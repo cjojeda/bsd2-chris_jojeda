@@ -34,6 +34,10 @@ Los cobros y egresos del día describen **dinero registrado**. Su diferencia es 
 
 La referencia de redes proporcionada por la usuaria orienta los colores y los contornos: bordó `#8E2445`, rosa suave `#F8EDF1`, marfil `#FBF9F8`, dorado tenue `#B79B62` y acentos verde salvia `#718276`. El nombre sigue siendo Sou Linda System. Los detalles florales y geométricos se reservan para la marca y el encabezado, conservando legibilidad en precios, stock y formularios. La imagen de redes no se usa para inferir teléfonos, cuentas ni datos financieros.
 
+## Guaraníes en ambas vistas
+
+Los negocios nuevos usan PYG y muestran precios como **₲ 50.000**, sin decimales. La [guía de guaraníes](guaranies.md) explica los porcentajes, el redondeo y el tratamiento de bases anteriores.
+
 ## Una sola base para las dos vistas
 
 Las dos propuestas leen y escriben `sou-linda.sqlite3`, que normalmente está en `%LOCALAPPDATA%\SouLindaSystem`. Una venta registrada en Ágil también aparece en Clásica. Cambiar de interfaz no importa, duplica ni elimina registros, y no modifica el esquema de la base.

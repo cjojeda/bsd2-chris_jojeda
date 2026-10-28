@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .money import round_ratio
+from .currency import round_money_ratio
 
 
 def normalize_sale(service, order_id_or_dict: str | Mapping[str, Any]) -> dict[str, Any]:
@@ -23,7 +23,7 @@ def normalize_sale(service, order_id_or_dict: str | Mapping[str, Any]) -> dict[s
     items = []
     for line in order['items']:
         total_cost = line['cogs_cents']
-        unit_cost = (round_ratio(total_cost, line['quantity'])
+        unit_cost = (round_money_ratio(service.db, total_cost, line['quantity'])
                      if total_cost is not None else None)
         items.append({
             'id': line['id'],

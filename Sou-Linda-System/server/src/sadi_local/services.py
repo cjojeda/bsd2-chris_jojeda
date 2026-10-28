@@ -12,7 +12,8 @@ from uuid import uuid4
 
 from .constants import CHANNELS, PAYMENT_METHODS, MAX_CENTS
 from .db import utc_now
-from .money import allocate, integer, round_ratio
+from .money import integer
+from .currency import allocate_money, round_money_ratio, validate_amount
 
 
 def uid():
@@ -67,6 +68,12 @@ class SadiService:
         self.db = db
         self.c = db.connection
 
+    def _amount(self, value, label='Importe', minimum=0):
+        return validate_amount(self.db, value, label, minimum)
+
+    def _round(self, numerator, denominator):
+        return round_money_ratio(self.db, numerator, denominator)
+
     def _row(self, table, identifier):
         # Table names are private static call sites, never user input.
         row = self.c.execute(f'SELECT * FROM "{table}" WHERE id=?', (identifier,)).fetchone()
@@ -101,14 +108,14 @@ class SadiService:
         return self.c.execute(f'SELECT COALESCE(MAX(sequence),0)+1 FROM "{table}"').fetchone()[0]
 
     def _economic(self, day, bucket, amount, order_id=None, channel=None, reference=''):
-        integer(amount, 'Importe contable', -MAX_CENTS, MAX_CENTS)
+        self._amount(amount, 'Importe contable', -MAX_CENTS)
         if amount:
             self.c.execute('INSERT INTO economic_entries VALUES(?,?,?,?,?,?,?)',
                            (uid(), day, bucket, amount, order_id, channel, reference))
 
     def _cash(self, day, method, delta, kind, order_id=None, reference='', note=''):
         paid_method(method)
-        integer(delta, 'Movimiento de caja', -MAX_CENTS, MAX_CENTS)
+        self._amount(delta, 'Movimiento de caja', -MAX_CENTS)
         if delta:
             self.c.execute('INSERT INTO cash_entries VALUES(?,?,?,?,?,?,?,?,?)',
                            (uid(), self._sequence('cash_entries'), day, method, delta, kind, order_id, reference, note))
@@ -119,7 +126,7 @@ class SadiService:
             raise ValueError('La variante no tiene inventario inicializado.')
         on_hand = quantity(old['on_hand'] + quantity_delta, 'Stock físico', zero=True)
         reserved = quantity(old['reserved'] + reserved_delta, 'Stock reservado', zero=True)
-        value = integer(old['value_cents'] + value_delta, 'Valor de inventario')
+        value = self._amount(old['value_cents'] + value_delta, 'Valor de inventario')
         if reserved > on_hand:
             raise ValueError('Stock insuficiente: parte de estas unidades está reservada para otro pedido.')
         if not on_hand and value:
@@ -135,7 +142,7 @@ class SadiService:
                 i.on_hand-i.reserved AS available,i.value_cents FROM variants v
                 JOIN products p ON p.id=v.product_id JOIN inventory i ON i.variant_id=v.id
                 ORDER BY p.normalized_name,v.size,v.color''').fetchall()
-        return [dict(row) | {'cpp_cents': round_ratio(row['value_cents'], row['on_hand']) if row['on_hand'] else 0} for row in rows]
+        return [dict(row) | {'cpp_cents': self._round(row['value_cents'], row['on_hand']) if row['on_hand'] else 0} for row in rows]
 
     def save_variant(self, data):
         if not isinstance(data, dict):
@@ -146,8 +153,8 @@ class SadiService:
             sku = text(data.get('sku', ''), 'SKU', maximum=80)
             size = text(data.get('size', ''), 'Talle', maximum=30)
             color = text(data.get('color', ''), 'Color', maximum=60)
-            retail = integer(data.get('retail_cents'), 'Precio minorista')
-            wholesale = integer(data.get('wholesale_cents'), 'Precio mayorista')
+            retail = self._amount(data.get('retail_cents'), 'Precio minorista')
+            wholesale = self._amount(data.get('wholesale_cents'), 'Precio mayorista')
             minimum = quantity(data.get('min_stock', 0), 'Stock mínimo', zero=True)
             existing_id = data.get('id')
             if existing_id:
@@ -186,8 +193,8 @@ class SadiService:
                                (identifier, product_id, sku, size, color, retail, wholesale, minimum, int(active)))
                 self.c.execute('INSERT INTO inventory VALUES(?,0,0,0,0)', (identifier,))
                 initial_qty = quantity(data.get('initial_qty', 0), 'Stock inicial', zero=True)
-                initial_cost = integer(data.get('initial_unit_cost_cents', 0), 'Costo inicial')
-                total_cost = integer(initial_qty * initial_cost, 'Valor inicial')
+                initial_cost = self._amount(data.get('initial_unit_cost_cents', 0), 'Costo inicial')
+                total_cost = self._amount(initial_qty * initial_cost, 'Valor inicial')
                 if initial_qty:
                     self._move(identifier, initial_qty, 0, total_cost, 'opening', validate_date(), note='Carga inicial de inventario')
             return identifier
@@ -199,7 +206,7 @@ class SadiService:
         def work():
             self._row('variants', variant_id)
             qty = globals()['quantity'](quantity)
-            cost = integer(total_cost_cents, 'Costo total de recepción')
+            cost = self._amount(total_cost_cents, 'Costo total de recepción')
             day = validate_date(business_date)
             memo = text(note, 'Nota', required=False, maximum=2000)
             paid_method(payment_method); bool_value(paid, 'Compra pagada')
@@ -216,18 +223,18 @@ class SadiService:
         def work():
             self._row('variants', variant_id)
             integer(delta, 'Ajuste de unidades', -1_000_000_000, 1_000_000_000)
-            integer(total_cost_cents, 'Valor incorporado')
+            self._amount(total_cost_cents, 'Valor incorporado')
             if not delta:
                 raise ValueError('El ajuste debe cambiar al menos una unidad.')
             day = validate_date(business_date)
             memo = text(note, 'Motivo', maximum=2000)
             old = self.c.execute('SELECT * FROM inventory WHERE variant_id=?', (variant_id,)).fetchone()
             if delta > 0:
-                value = integer(total_cost_cents, 'Valor incorporado')
+                value = self._amount(total_cost_cents, 'Valor incorporado')
             else:
                 if -delta > old['on_hand'] - old['reserved']:
                     raise ValueError('El ajuste no puede consumir unidades reservadas.')
-                value = -round_ratio(old['value_cents'] * -delta, old['on_hand'])
+                value = -self._round(old['value_cents'] * -delta, old['on_hand'])
                 self._economic(day, 'inventory_loss', -value, reference=variant_id)
             self._move(variant_id, delta, 0, value, 'adjustment', day, note=memo)
             return variant_id
@@ -266,7 +273,7 @@ class SadiService:
                 self._row('customers', customer_id)
             day = validate_date(business_date)
             integer(commission_bps, 'Comisión', 0, 10000)
-            integer(shipping_cents, 'Envío'); integer(packaging_cents, 'Packaging')
+            self._amount(shipping_cents, 'Envío'); self._amount(packaging_cents, 'Packaging')
             paid_method(direct_cost_method); bool_value(direct_costs_paid, 'Costos directos pagados')
             memo = text(notes, 'Nota', False, 2000)
             if not isinstance(items, list) or not items:
@@ -284,20 +291,20 @@ class SadiService:
                     raise ValueError('Una variante del carrito está desactivada.')
                 product = self._row('products', variant['product_id'])
                 qty = quantity(line.get('quantity'))
-                price = integer(line.get('unit_price_cents'), 'Precio de venta')
-                gross = integer(price * qty, 'Importe de línea')
+                price = self._amount(line.get('unit_price_cents'), 'Precio de venta')
+                gross = self._amount(price * qty, 'Importe de línea')
                 prepared.append((variant, product, qty, price, gross))
-            subtotal = integer(sum(line[4] for line in prepared), 'Subtotal')
+            subtotal = self._amount(sum(line[4] for line in prepared), 'Subtotal')
             if discount_kind == 'fixed':
-                discount = integer(discount_value, 'Descuento fijo')
+                discount = self._amount(discount_value, 'Descuento fijo')
             elif discount_kind == 'percent':
                 integer(discount_value, 'Porcentaje de descuento', 0, 10000)
-                discount = round_ratio(subtotal * discount_value, 10000)
+                discount = self._round(subtotal * discount_value, 10000)
             else:
                 raise ValueError('Elegí descuento fijo o porcentual.')
             if discount > subtotal:
                 raise ValueError('El descuento no puede superar el subtotal.')
-            portions = allocate(discount, [line[4] for line in prepared])
+            portions = allocate_money(self.db, discount, [line[4] for line in prepared])
             identifier = uid()
             count = self.c.execute('SELECT COUNT(*) FROM orders').fetchone()[0] + 1
             number = f'S-{count:06d}'
@@ -369,7 +376,7 @@ class SadiService:
             own = self.c.execute("SELECT COALESCE(SUM(quantity),0) FROM reservations WHERE order_item_id=? AND state='active'", (line['id'],)).fetchone()[0]
             if inventory['on_hand'] - inventory['reserved'] + own < line['quantity']:
                 raise ValueError(f"Stock insuficiente para {line['model_snapshot']} ({line['variant_snapshot']}).")
-            cost = round_ratio(inventory['value_cents'] * line['quantity'], inventory['on_hand'])
+            cost = self._round(inventory['value_cents'] * line['quantity'], inventory['on_hand'])
             cogs_total = integer(cogs_total + cost, 'CMV total')
             self._move(line['variant_id'], -line['quantity'], -own, -cost, 'sale', day, order_id)
             self.c.execute("UPDATE reservations SET state='consumed' WHERE order_item_id=? AND state='active'", (line['id'],))
@@ -402,7 +409,7 @@ class SadiService:
 
     def _payment(self, order_id, amount_cents, method, commission_bps, day):
         order = self._row('orders', order_id)
-        integer(amount_cents, 'Cobro', 1)
+        self._amount(amount_cents, 'Cobro', 1)
         paid_method(method)
         integer(commission_bps, 'Comisión', 0, 10000)
         if order['status'] == 'cancelled':
@@ -411,7 +418,7 @@ class SadiService:
             raise ValueError('El cobro no puede ser anterior al pedido.')
         if amount_cents > self._balance(order_id):
             raise ValueError('El cobro supera el saldo pendiente del pedido.')
-        fee = round_ratio(amount_cents * commission_bps, 10000)
+        fee = self._round(amount_cents * commission_bps, 10000)
         identifier = uid()
         self.c.execute('INSERT INTO payments VALUES(?,?,?,?,?,?,?,?,?)',
                        (identifier, order_id, day, amount_cents, method, 'receipt', commission_bps, fee, utc_now()))
@@ -432,7 +439,7 @@ class SadiService:
         args = dict(order_id=order_id, amount_cents=amount_cents, method=method, business_date=business_date)
         def work():
             order = self._row('orders', order_id)
-            integer(amount_cents, 'Reembolso', 1); paid_method(method)
+            self._amount(amount_cents, 'Reembolso', 1); paid_method(method)
             day = validate_date(business_date)
             if day < order['business_date']:
                 raise ValueError('El reintegro no puede ser anterior al pedido.')
@@ -475,8 +482,8 @@ class SadiService:
             if line['cogs_cents'] is None:
                 raise ValueError('Primero resolvé el costo histórico de la venta importada; no se ingresará inventario con costo ficticio.')
             cumulative = old['qty'] + qty
-            revenue = round_ratio(line['net_cents'] * cumulative, line['quantity']) - old['revenue']
-            cost = round_ratio(line['cogs_cents'] * cumulative, line['quantity']) - old['cogs']
+            revenue = self._round(line['net_cents'] * cumulative, line['quantity']) - old['revenue']
+            cost = self._round(line['cogs_cents'] * cumulative, line['quantity']) - old['cogs']
             prepared.append((line, qty, revenue, cost))
             revenue_total += revenue; cogs_total += cost
         if not prepared:
@@ -526,7 +533,7 @@ class SadiService:
             day = validate_date(business_date)
             category_text = text(category, 'Categoría')
             desc = text(description, 'Descripción', maximum=2000)
-            integer(amount_cents, 'Importe del gasto', 1); paid_method(payment_method); bool_value(paid, 'Gasto pagado')
+            self._amount(amount_cents, 'Importe del gasto', 1); paid_method(payment_method); bool_value(paid, 'Gasto pagado')
             if channel is not None and channel not in CHANNELS:
                 raise ValueError('Canal del gasto inválido.')
             if cost_type not in ('fixed', 'variable'):

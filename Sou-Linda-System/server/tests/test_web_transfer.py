@@ -16,10 +16,16 @@ import pytest
 from sadi_local import transfer
 from sadi_local.web import create_app
 from sadi_local import web_transfer
+from sadi_local.db import Database
 
 
 @pytest.fixture
 def api(tmp_path):
+    # These original migration fixtures exercise backward-compatible ARS
+    # decimal files. Seed metadata before ASGI owns its SQLite connection.
+    db = Database(tmp_path / "business.sqlite3")
+    db.set_meta("currency", "ARS")
+    db.close()
     app = create_app(tmp_path / "business.sqlite3", allow_mobile=True,
                      report_addresses=["http://192.168.1.20:8765"])
     with TestClient(app, base_url="http://localhost:8765", client=("127.0.0.1", 50001)) as client:

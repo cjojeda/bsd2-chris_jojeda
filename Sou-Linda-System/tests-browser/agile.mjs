@@ -24,6 +24,8 @@ try{
   }
   await page.getByText('Datos de ejemplo. Explorá todas las funciones antes de cargar tu negocio.',{exact:true}).waitFor();
   const snapshot=await read('/api/snapshot');
+  const guaranies=snapshot.settings.some(row=>row.key==='currency'&&row.value==='PYG');
+  const expenseText=guaranies?'17500':'17.50';const expenseValue=guaranies?1750000:1750;
   assert(snapshot.settings.some(row=>row.key==='demo'&&row.value==='true'),'La prueba debe usar una base de demostración');
   await page.waitForFunction(()=>document.querySelector('.ag-month-value strong')?.textContent!=='Consultando…');
   assert((await page.locator('.ag-today-grid').innerText()).includes('Cobros menos pagos; no es ganancia.'),'El movimiento diario no debe confundirse con rentabilidad');
@@ -65,7 +67,7 @@ try{
   const dailyBefore=await read(`/api/reports/daily?date=${date}&opening=0`);
   const expensesBefore=await read('/api/snapshot');
   await dialog.getByLabel('Descripción',{exact:true}).fill('Prueba de gasto desde vista Ágil');
-  await dialog.getByLabel('Importe (ARS)',{exact:true}).fill('17.50');
+  await dialog.getByLabel(/^Importe \(/).fill(expenseText);
   await dialog.getByLabel('Categoría',{exact:true}).selectOption('Otros');
   await dialog.getByLabel('Medio de pago',{exact:true}).selectOption('Transferencia');
   await dialog.getByLabel('Ya lo pagué: registrar también el egreso real',{exact:true}).check();
@@ -74,11 +76,11 @@ try{
   const expensesAfter=await read('/api/snapshot');
   assert.equal(expensesAfter.expenses.length,expensesBefore.expenses.length+1);
   const created=expensesAfter.expenses.find(row=>!expensesBefore.expenses.some(old=>old.id===row.id));
-  assert.equal(created.amount,1750);assert.equal(created.paid,true);assert.equal(created.paymentMethod,'Transferencia');
+  assert.equal(created.amount,expenseValue);assert.equal(created.paid,true);assert.equal(created.paymentMethod,'Transferencia');
   const monthlyAfter=await read(`/api/reports/monthly?month=${date.slice(0,7)}`);
   const dailyAfter=await read(`/api/reports/daily?date=${date}&opening=0`);
-  assert.equal(monthlyAfter.net_profit_cents,monthlyBefore.net_profit_cents-1750);
-  assert.equal(dailyAfter.expenses_cents,dailyBefore.expenses_cents+1750);
+  assert.equal(monthlyAfter.net_profit_cents,monthlyBefore.net_profit_cents-expenseValue);
+  assert.equal(dailyAfter.expenses_cents,dailyBefore.expenses_cents+expenseValue);
   assert.equal(dailyAfter.receipts_cents,dailyBefore.receipts_cents);
   checks.push('gasto directo desde inicio','gasto reduce ganancia y caja exactos');
 

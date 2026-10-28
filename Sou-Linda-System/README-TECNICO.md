@@ -1,6 +1,6 @@
 # Sou Linda System
 
-Aplicación web para administrar una lencería desde la notebook, con **Python y SQLite local**. Incluye catálogo por modelo/talle/color, ventas, reservas, clientas, caja, costos, rentabilidad y respaldo completo. La interfaz se abre en Chrome o Edge; los datos del negocio se guardan en el disco de la notebook, fuera del navegador.
+Aplicación web para administrar una lencería de Paraguay en **guaraníes (PYG, ₲)** desde la notebook, con **Python y SQLite local**. Incluye catálogo por modelo/talle/color, ventas, reservas, clientas, caja, costos, rentabilidad y respaldo completo. La interfaz se abre en Chrome o Edge; los datos del negocio se guardan en el disco de la notebook, fuera del navegador.
 
 El celular puede consultar **reportes de solo lectura en la misma Wi-Fi**, cuando la notebook está encendida y el motor local está abierto. Este proyecto no sincroniza el negocio con una nube ni habilita acceso desde Internet.
 
@@ -37,7 +37,7 @@ La [guía de uso e instalación](docs/web-local.md) explica el acceso móvil, lo
 
 ## Reglas financieras
 
-Los importes se guardan en **centavos enteros**. El costo promedio ponderado se calcula sobre el valor y las unidades del inventario; cada venta conserva el costo que tenía al completarse. Un descuento reduce el ingreso de la venta y su ganancia, sin reducir artificialmente el costo.
+Los precios, cobros y gastos se ingresan en **guaraníes enteros** y se muestran como `₲ 50.000`. La base conserva una escala técnica de 100 para compatibilidad; los importes PYG son múltiplos de 100 en esa escala. El costo promedio ponderado se calcula sobre el valor y las unidades del inventario; cada venta conserva el costo que tenía al completarse. Un descuento reduce el ingreso de la venta y su ganancia, sin reducir artificialmente el costo.
 
 ```text
 Ingreso de venta = precio bruto − descuento
@@ -48,6 +48,8 @@ Ganancia neta del período = ingresos netos − costo de ventas − costos direc
 Las reservas reducen el stock **disponible**, conservando el físico y su valor hasta completar o liberar el pedido. Una devolución registra un movimiento compensatorio en su fecha y recupera el costo histórico; el reembolso de dinero es una operación separada. Las compras de stock afectan caja cuando se pagan y resultado cuando se vende la mercadería, evitando descontarlas dos veces.
 
 La rentabilidad y el efectivo se calculan en libros separados: vender a crédito no inventa un cobro. Si una venta histórica importada no tiene costo conocido, el resultado se informa **incompleto**, no como si ese costo fuera cero.
+
+La [guía de guaraníes](docs/guaranies.md) detalla redondeos, importación, contactos +595 y compatibilidad con bases antiguas sin conversión automática.
 
 ## Respaldo y migración
 
@@ -111,4 +113,4 @@ Instalar la interfaz como PWA agrega un acceso directo y caché de archivos est�
 
 La base y los respaldos no están cifrados por esta aplicación. El acceso móvil comparte datos agregados mediante un enlace privado y revocable sobre la red local; usalo en una Wi-Fi de confianza. No abras puertos del router para acceder desde afuera.
 
-No se ha publicado un sitio en Sites ni creado un repositorio remoto desde esta entrega: esas integraciones no estuvieron disponibles. El proyecto queda listo para ejecución local y revisión.
+El código, las capturas y los paquetes se conservan en el repositorio autorizado [cjojeda/bsd2-chris_jojeda, rama sou-linda-system-entrega](https://github.com/cjojeda/bsd2-chris_jojeda/tree/sou-linda-system-entrega/Sou-Linda-System). La aplicación se ejecuta en la notebook; no se publicó un sitio en Sites.

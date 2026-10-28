@@ -15,6 +15,7 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -24,7 +25,8 @@ from uuid import uuid4
 from . import __version__
 from .constants import CHANNELS, MAX_CENTS, PAYMENT_METHODS
 from .db import Database, SCHEMA_VERSION, TABLES, utc_now
-from .money import allocate, integer, parse_money, percent_bps, round_ratio
+from .money import integer, parse_money, percent_bps
+from .currency import currency_code, money_quantum, round_money_ratio, allocate_money, validate_amount
 
 BACKUP_FORMAT = "sadi-desktop-backup"
 BACKUP_VERSION = 1
@@ -211,6 +213,21 @@ def validate_database(db: Database):
         raise ValueError("La base no superó el control de integridad.")
     if conn.execute("PRAGMA foreign_key_check").fetchone() is not None:
         raise ValueError("Hay referencias inexistentes en el respaldo.")
+    # Existing backups without currency metadata retain the legacy precision.
+    # A PYG marker promises whole guaranies in every financial record, not only
+    # in its on-screen presentation, so reject hidden fractional balances.
+    quantum = money_quantum(db)
+    if quantum > 1:
+        for table in TABLES:
+            columns = [row["name"] for row in conn.execute(f'PRAGMA table_info("{table}")')
+                       if row["name"].endswith("_cents")]
+            if not columns:
+                continue
+            for row in conn.execute(f'SELECT {",".join(columns)} FROM "{table}"'):
+                if any(row[column] is not None and row[column] % quantum for column in columns):
+                    raise ValueError(f"El respaldo PYG contiene fracciones de guaraní en {table}.")
+        if conn.execute("SELECT 1 FROM orders WHERE discount_kind='fixed' AND discount_value % ? != 0 LIMIT 1", (quantum,)).fetchone():
+            raise ValueError("El respaldo PYG contiene un descuento fijo con fracciones de guaraní.")
     products = {}
     for product in conn.execute("SELECT * FROM products"):
         if product["normalized_name"] != _normal(product["name"]) or product["normalized_name"] in products:
@@ -274,7 +291,7 @@ def validate_database(db: Database):
                 raise ValueError("Un cobro no puede preceder al pedido.")
             if payment["kind"] == "receipt":
                 receipts += payment["amount_cents"]
-                if round_ratio(payment["amount_cents"] * payment["commission_bps"], 10000) != payment["commission_cents"]:
+                if round_money_ratio(db, payment["amount_cents"] * payment["commission_bps"], 10000) != payment["commission_cents"]:
                     raise ValueError("La comisión del cobro no coincide con su base y porcentaje.")
             else:
                 refunds += payment["amount_cents"]
@@ -501,6 +518,26 @@ def _whole(value: str, label: str, minimum=0) -> int:
     return integer(int(value), label, minimum, 1_000_000_000)
 
 
+def _import_money(db: Database, value: str) -> int:
+    """Read PYG whole units, including Paraguay's dot thousands grouping.
+
+    Decimal-zero Excel values are accepted, but nonzero fractional guaranies
+    are rejected instead of rounding imported payments or changing their value.
+    ARS legacy files retain the previous explicit decimal parser.
+    """
+    if currency_code(db) != "PYG":
+        return parse_money(value)
+    text = str(value).strip()
+    text = re.sub(r"^(?:₲\s*|Gs\.?\s*)", "", text, flags=re.IGNORECASE)
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,0{1,2})?", text):
+        whole = text.split(",")[0].replace(".", "")
+    elif re.fullmatch(r"\d+(?:[.,]0{1,2})?", text):
+        whole = re.split(r"[.,]", text)[0]
+    else:
+        raise ValueError("Ingresá guaraníes enteros, por ejemplo 50000 o 50.000, sin decimales.")
+    return validate_amount(db, int(whole) * 100, "Importe en guaraníes")
+
+
 def _customer_id(service, row: dict) -> tuple[str | None, str | None]:
     customer_id = row.get("cliente_id", "").strip()
     name = row.get("cliente", "").strip()
@@ -552,9 +589,9 @@ def _build_preview(service, preview: ImportPreview) -> ImportPreview:
                 file_variants.add(combination)
                 preview.records.append({
                     "model": row["modelo"], "category": row.get("categoria") or "Lencería", "sku": row["sku"],
-                    "size": row["talle"], "color": row["color"], "retail_cents": parse_money(row["pvp"]),
-                    "wholesale_cents": parse_money(row["mayorista"]), "min_stock": _whole(row.get("stock_minimo") or "1", "Stock mínimo"),
-                    "initial_qty": _whole(row["stock"], "Stock"), "initial_unit_cost_cents": parse_money(row["costo"]),
+                    "size": row["talle"], "color": row["color"], "retail_cents": _import_money(service.db, row["pvp"]),
+                    "wholesale_cents": _import_money(service.db, row["mayorista"]), "min_stock": _whole(row.get("stock_minimo") or "1", "Stock mínimo"),
+                    "initial_qty": _whole(row["stock"], "Stock"), "initial_unit_cost_cents": _import_money(service.db, row["costo"]),
                 })
             else:
                 external_id = row["id_externo"].strip()
@@ -582,12 +619,12 @@ def _build_preview(service, preview: ImportPreview) -> ImportPreview:
                 common = {
                     "external_key": key, "business_date": sale_day, "channel": channel, "payment_method": method,
                     "customer_id": customer_id, "customer_name": customer_name, "payment_date": payment_day,
-                    "shipping_cents": parse_money(row.get("envio") or "0"), "packaging_cents": parse_money(row.get("packaging") or "0"),
-                    "discount_cents": parse_money(row.get("descuento") or "0"), "commission_bps": percent_bps(row.get("comision_porcentaje") or "0"),
+                    "shipping_cents": _import_money(service.db, row.get("envio") or "0"), "packaging_cents": _import_money(service.db, row.get("packaging") or "0"),
+                    "discount_cents": _import_money(service.db, row.get("descuento") or "0"), "commission_bps": percent_bps(row.get("comision_porcentaje") or "0"),
                 }
                 line = {"variant_id": variant["id"], "model": variant["model"], "variant": f'{variant["size"]} · {variant["color"]}',
-                        "quantity": _whole(row["cantidad"], "Cantidad", 1), "unit_price_cents": parse_money(row["precio_unitario"]),
-                        "unit_cost_cents": parse_money(row["costo_unitario"]) if row.get("costo_unitario") else None}
+                        "quantity": _whole(row["cantidad"], "Cantidad", 1), "unit_price_cents": _import_money(service.db, row["precio_unitario"]),
+                        "unit_cost_cents": _import_money(service.db, row["costo_unitario"]) if row.get("costo_unitario") else None}
                 integer(line["quantity"] * line["unit_price_cents"], "Subtotal")
                 if line["unit_cost_cents"] is not None:
                     integer(line["quantity"] * line["unit_cost_cents"], "Costo histórico")
@@ -648,7 +685,7 @@ def _import_sale(service, group: dict) -> str:
         matches = [customer for customer in service.list_customers() if _normal(customer["name"]) == _normal(group["customer_name"])]
         customer_id = matches[0]["id"] if len(matches) == 1 else service.save_customer(group["customer_name"])
     gross = [item["quantity"] * item["unit_price_cents"] for item in group["items"]]
-    discounts = allocate(group["discount_cents"], gross)
+    discounts = allocate_money(service.db, group["discount_cents"], gross)
     costs = [item["quantity"] * item["unit_cost_cents"] if item["unit_cost_cents"] is not None else None for item in group["items"]]
     cogs = sum(costs) if all(cost is not None for cost in costs) else None
     subtotal = integer(sum(gross), "Subtotal")
@@ -671,7 +708,7 @@ def _import_sale(service, group: dict) -> str:
                     order_id=order_id, channel=group["channel"], reference=order_id)
     if terms == "immediate" and total:
         payment_id = str(uuid4())
-        fee = round_ratio(total * group["commission_bps"], 10000)
+        fee = round_money_ratio(service.db, total * group["commission_bps"], 10000)
         _insert(conn, "payments", id=payment_id, order_id=order_id, business_date=group["payment_date"], amount_cents=total,
                 method=group["payment_method"], kind="receipt", commission_bps=group["commission_bps"], commission_cents=fee, created_at=utc_now())
         _insert(conn, "cash_entries", id=str(uuid4()), sequence=_next_sequence(conn, "cash_entries"), business_date=group["payment_date"], method=group["payment_method"],
@@ -710,21 +747,25 @@ def _safe_csv_text(value):
     return value
 
 
-def _money_decimal(cents):
+def _money_decimal(cents, currency="ARS"):
     if cents is None:
         return ""
     sign = "-" if cents < 0 else ""
     whole, fraction = divmod(abs(cents), 100)
+    if currency == "PYG" and fraction == 0:
+        return Decimal(f"{sign}{whole}")
     return Decimal(f"{sign}{whole}.{fraction:02d}")
 
 
 def export_table(service, path: str | Path, kind: str) -> Path:
     path = Path(path)
     _protect_database_path(service.db, path)
+    currency = currency_code(service.db)
+    monetary = lambda amount: _money_decimal(amount, currency)
     if kind == "variants":
         headers = list(VARIANT_COLUMNS)
-        rows = [[v["model"], v["category"], v["sku"], v["size"], v["color"], _money_decimal(v["cpp_cents"]), _money_decimal(v["retail_cents"]),
-                 _money_decimal(v["wholesale_cents"]), v["on_hand"], v["min_stock"]] for v in service.list_variants()]
+        rows = [[v["model"], v["category"], v["sku"], v["size"], v["color"], monetary(v["cpp_cents"]), monetary(v["retail_cents"]),
+                 monetary(v["wholesale_cents"]), v["on_hand"], v["min_stock"]] for v in service.list_variants()]
     elif kind == "sales":
         headers = ["numero", "fecha", "estado", "cliente", "canal", "modelo", "variante", "cantidad", "precio_unitario", "costo_total_linea", "descuento_linea", "venta_neta_linea", "envio_pedido", "packaging_pedido", "saldo_pedido"]
         rows = []
@@ -732,11 +773,11 @@ def export_table(service, path: str | Path, kind: str) -> Path:
             full = service.get_order(order["id"])
             for index, item in enumerate(full["items"]):
                 rows.append([full["number"], full["completed_date"] or full["business_date"], full["status"], full.get("customer_name") or "", full["channel"], item["model_snapshot"], item["variant_snapshot"], item["quantity"],
-                             _money_decimal(item["unit_price_cents"]), _money_decimal(item["cogs_cents"]), _money_decimal(item["discount_cents"]), _money_decimal(item["net_cents"]),
-                             _money_decimal(full["shipping_cents"]) if index == 0 else "", _money_decimal(full["packaging_cents"]) if index == 0 else "", _money_decimal(full["balance_cents"]) if index == 0 else ""])
+                             monetary(item["unit_price_cents"]), monetary(item["cogs_cents"]), monetary(item["discount_cents"]), monetary(item["net_cents"]),
+                             monetary(full["shipping_cents"]) if index == 0 else "", monetary(full["packaging_cents"]) if index == 0 else "", monetary(full["balance_cents"]) if index == 0 else ""])
     elif kind == "expenses":
         headers = ["fecha", "categoria", "tipo", "descripcion", "importe", "medio_pago", "canal", "pagado"]
-        rows = [[row["business_date"], row["category"], row["cost_type"], row["description"], _money_decimal(row["amount_cents"]), row["payment_method"], row["channel"] or "", row["paid"]]
+        rows = [[row["business_date"], row["category"], row["cost_type"], row["description"], monetary(row["amount_cents"]), row["payment_method"], row["channel"] or "", row["paid"]]
                 for row in service.db.connection.execute("SELECT * FROM expenses ORDER BY business_date,id")]
     else:
         raise ValueError("Elegí variantes, ventas o gastos.")
@@ -759,7 +800,8 @@ def export_table(service, path: str | Path, kind: str) -> Path:
             if isinstance(cell.value, str):
                 cell.data_type = "s"
             elif isinstance(cell.value, Decimal):
-                cell.number_format = "#,##0.00"
+                cell.number_format = '"₲" #,##0' if currency == "PYG" else "#,##0.00"
+    book.properties.description = f"Moneda del negocio: {currency}. Importes expresados en unidades monetarias, sin conversión de divisas."
     sheet.freeze_panes = "A2"
     sheet.auto_filter.ref = sheet.dimensions
     for column in sheet.columns:

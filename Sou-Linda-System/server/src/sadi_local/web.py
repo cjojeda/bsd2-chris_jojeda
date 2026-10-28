@@ -25,6 +25,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .db import Database
+from .currency import currency_code, initialize_business_currency, validate_amount
 from .demo import seed_demo
 from .reports import close_cash, daily_report, monthly_report
 from .services import SadiService
@@ -154,7 +155,7 @@ def _qr_svg(url):
 
 def _mobile_projection(report):
     """An allowlist prevents future report fields from accidentally exposing PII."""
-    scalar_keys = ('month', 'revenue_cents', 'cogs_cents', 'commission_cents', 'shipping_cents',
+    scalar_keys = ('month', 'currency', 'revenue_cents', 'cogs_cents', 'commission_cents', 'shipping_cents',
         'packaging_cents', 'operating_cents', 'loss_cents', 'gross_profit_cents', 'net_profit_cents',
         'known_result_cents', 'incomplete_cost_count', 'sales_count', 'average_ticket_cents',
         'new_sales_cents', 'discount_cents', 'shared_expense_cents', 'unallocated_expense_cents',
@@ -177,20 +178,21 @@ def create_app(db_path, static_dir=None, allow_mobile=False, allowed_hosts=None,
     @asynccontextmanager
     async def lifespan(app):
         db = Database(database_path)
-        app.state.db = db
-        app.state.service = SadiService(db)
-        app.state.session_token = secrets.token_urlsafe(32)
-        app.state.csrf_token = secrets.token_urlsafe(32)
-        app.state.mobile_hash = _read_mobile_hash(auth_path)
-        app.state.mobile_auth_path = auth_path
-        app.state.allow_mobile = bool(allow_mobile)
-        app.state.report_addresses = addresses
         try:
+            initialize_business_currency(db)
+            app.state.db = db
+            app.state.service = SadiService(db)
+            app.state.session_token = secrets.token_urlsafe(32)
+            app.state.csrf_token = secrets.token_urlsafe(32)
+            app.state.mobile_hash = _read_mobile_hash(auth_path)
+            app.state.mobile_auth_path = auth_path
+            app.state.allow_mobile = bool(allow_mobile)
+            app.state.report_addresses = addresses
             yield
         finally:
             db.close()
 
-    app = FastAPI(title='Sou Linda System', version='0.4.0', lifespan=lifespan,
+    app = FastAPI(title='Sou Linda System', version='0.5.0', lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None)
     app.state.allow_mobile = bool(allow_mobile)
     app.state.report_addresses = addresses
@@ -409,16 +411,22 @@ def create_app(db_path, static_dir=None, allow_mobile=False, allowed_hosts=None,
 
     @app.get('/api/reports/monthly', dependencies=[Depends(require_admin)])
     async def monthly(request: Request, month: str | None = None, allocate_shared: bool = False):
-        return monthly_report(request.app.state.db, month or date.today().strftime('%Y-%m'), allocate_shared)
+        db = request.app.state.db
+        return monthly_report(db, month or date.today().strftime('%Y-%m'), allocate_shared) | {'currency': currency_code(db)}
 
     @app.get('/api/reports/daily', dependencies=[Depends(require_admin)])
     async def daily(request: Request, date: str | None = None, opening: int = 0):
         from datetime import date as local_date
-        return daily_report(request.app.state.db, date or local_date.today().isoformat(), opening)
+        db = request.app.state.db
+        validate_amount(db, opening, 'Fondo inicial')
+        return daily_report(db, date or local_date.today().isoformat(), opening) | {'currency': currency_code(db)}
 
     @app.post('/api/cash-close', dependencies=[Depends(require_admin)])
     async def cash_close(body: CashClosingRequest, request: Request):
-        return close_cash(request.app.state.db, body.date, body.openingCash, body.countedCash,
+        db = request.app.state.db
+        validate_amount(db, body.openingCash, 'Fondo inicial')
+        validate_amount(db, body.countedCash, 'Efectivo contado')
+        return close_cash(db, body.date, body.openingCash, body.countedCash,
                           body.note, allow_revision=body.allowRevision)
 
     @app.get('/api/drafts/pos', dependencies=[Depends(require_admin)])
@@ -474,7 +482,8 @@ def create_app(db_path, static_dir=None, allow_mobile=False, allowed_hosts=None,
         digest = hashlib.sha256(candidate.encode('utf-8')).hexdigest()
         if not stored or not _same_secret(digest, stored):
             raise HTTPException(401, 'La vinculación venció o fue revocada. Volvé a vincular el celular.')
-        report = monthly_report(request.app.state.db, month or date.today().strftime('%Y-%m'), allocate_shared)
+        db = request.app.state.db
+        report = monthly_report(db, month or date.today().strftime('%Y-%m'), allocate_shared) | {'currency': currency_code(db)}
         return _mobile_projection(report)
 
     # Backups/imports are required features. A broken installation must fail

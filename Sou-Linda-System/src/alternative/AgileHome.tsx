@@ -21,9 +21,9 @@ export default function AgileHome({ data, go }: Props) {
   const alerts = stockAlerts(data);
   const orders = openOrderCounts(data.sales);
   const recent = recentOrderActivity(data.sales);
-  const todayName = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${today}T12:00:00`));
-  const monthName = new Intl.DateTimeFormat('es-AR', { month: 'long' }).format(new Date(`${localMonth()}-15T12:00:00`));
-  const units = (value: number | null) => value === null ? 'Ver inventario' : value.toLocaleString('es-AR');
+  const todayName = new Intl.DateTimeFormat('es-PY', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${today}T12:00:00`));
+  const monthName = new Intl.DateTimeFormat('es-PY', { month: 'long' }).format(new Date(`${localMonth()}-15T12:00:00`));
+  const units = (value: number | null) => value === null ? 'Ver inventario' : value.toLocaleString('es-PY');
   const amount = (value: number | undefined) => value === undefined ? 'Consultando…' : money(value);
   return <div className="ag-home">
     <section className="ag-home-hero">

@@ -11,13 +11,13 @@ TREES = ('src', 'public', 'dist', 'server/src', 'server/tests', 'server/docs', '
 FILES = ('README.md', 'index.html', 'package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts',
          'Iniciar-Sou-Linda-System.cmd', 'Compartir-reportes-en-celular.cmd', 'Abrir-Sou-Linda-Agil.cmd',
          'server/run.py', 'server/requirements.txt', 'server/requirements-dev.txt', 'server/pyproject.toml',
-         'docs/web-local.md', 'docs/architecture-web.md', 'docs/validacion.md', 'docs/alternativa-agil.md', 'docs/referencias-treinta.md',
+         'docs/web-local.md', 'docs/architecture-web.md', 'docs/validacion.md', 'docs/alternativa-agil.md', 'docs/referencias-treinta.md', 'docs/guaranies.md',
          '.github/workflows/web-local.yml')
 
 
 def main():
     parser = argparse.ArgumentParser(description='Empaquetar Sou Linda System web local')
-    parser.add_argument('--output', type=Path, default=ROOT.parent / 'Sou-Linda-System-Dos-Vistas.zip')
+    parser.add_argument('--output', type=Path, default=ROOT.parent / 'Sou-Linda-System-Guaranies.zip')
     args = parser.parse_args()
     if not (ROOT / 'dist/index.html').is_file():
         parser.error('Compilá la interfaz con npm run build antes de empaquetar.')

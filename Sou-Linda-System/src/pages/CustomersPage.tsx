@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Eye, MessageCircle, Pencil, Plus, Search, Users } from 'lucide-react';
 import { EmptyState, Field, Modal } from '../components/ui';
-import { displayDate, money } from '../domain/format';
+import { displayDate, money, whatsappPhone } from '../domain/format';
 import { saveCustomer } from '../domain/services';
 import type { Customer, Sale, SaleStatus, Snapshot } from '../domain/types';
 import { CollectPaymentModal, saleBalance } from './SalesPage';
@@ -62,7 +62,7 @@ export default function CustomersPage({ data, notify }: Props) {
     return null;
   }
   function whatsapp(customer: Customer) {
-    const phone = customer.phone.replace(/\D/g, '');
+    const phone = whatsappPhone(customer.phone);
     return `https://wa.me/${phone}?text=${encodeURIComponent(`Hola ${customer.name}, ¿cómo estás?`)}`;
   }
 
@@ -85,7 +85,7 @@ export default function CustomersPage({ data, notify }: Props) {
           <td><strong>{money(stat.netPurchases)}</strong><small className="muted">{stat.count} entregas · devoluciones descontadas</small></td>
           <td>{stat.debt > 0 ? <span className="badge badge-warning">{money(stat.debt)}</span> : <span className="muted">—</span>}</td>
           <td>{stat.credit > 0 ? <span className="badge badge-neutral">{money(stat.credit)}</span> : <span className="muted">—</span>}</td>
-          <td><div className="row-actions"><button className="icon-btn" aria-label={`Ver historial de ${customer.name}`} onClick={() => setHistoryId(customer.id)}><Eye size={17} /></button><button className="icon-btn" aria-label={`Editar ${customer.name}`} onClick={() => openForm(customer)}><Pencil size={16} /></button>{customer.phone.replace(/\D/g, '').length >= 8 && <a className="icon-btn" href={whatsapp(customer)} target="_blank" rel="noopener noreferrer" aria-label={`Preparar WhatsApp de ${customer.name}`}><MessageCircle size={17} /></a>}</div></td>
+          <td><div className="row-actions"><button className="icon-btn" aria-label={`Ver historial de ${customer.name}`} onClick={() => setHistoryId(customer.id)}><Eye size={17} /></button><button className="icon-btn" aria-label={`Editar ${customer.name}`} onClick={() => openForm(customer)}><Pencil size={16} /></button>{whatsappPhone(customer.phone).length >= 8 && <a className="icon-btn" href={whatsapp(customer)} target="_blank" rel="noopener noreferrer" aria-label={`Preparar WhatsApp de ${customer.name}`}><MessageCircle size={17} /></a>}</div></td>
         </tr>;
       })}</tbody></table></div> : <EmptyState title={data.customers.length ? 'No encontramos esa clienta' : 'Una agenda que conoce a tus clientas'} detail={data.customers.length ? 'Buscá por otro nombre, teléfono, usuario o talle.' : 'Guardá contactos y preferencias. Sus pedidos se vinculan al seleccionarlas en el punto de venta.'} action={!data.customers.length && <button className="btn btn-primary" onClick={() => openForm()}><Plus size={17} />Agregar clienta</button>} />}
       <div className="table-footer"><span>Los saldos y créditos se muestran separados; no se compensan entre pedidos automáticamente.</span><span>WhatsApp abre un mensaje para revisar y enviar.</span></div>
@@ -94,7 +94,7 @@ export default function CustomersPage({ data, notify }: Props) {
     {form && <Modal title={form.id ? 'Editar clienta' : 'Nueva clienta'} onClose={() => !saving && setForm(null)}>
       <form className="stack-form" onSubmit={submit}>
         <Field label="Nombre y apellido"><input required autoFocus maxLength={120} value={form.name} disabled={saving} onChange={event => update('name', event.target.value)} placeholder="María Rodríguez" /></Field>
-        <Field label="Teléfono / WhatsApp" hint="Incluí el código de país, por ejemplo +54 9 11… El enlace no envía mensajes automáticamente."><input type="tel" maxLength={40} value={form.phone} disabled={saving} onChange={event => update('phone', event.target.value)} placeholder="+54 9 11 1234 5678" /></Field>
+        <Field label="Teléfono / WhatsApp" hint="Usá un número paraguayo como 0981 123456 o +595 981 123456. El enlace no envía mensajes automáticamente."><input type="tel" maxLength={40} value={form.phone} disabled={saving} onChange={event => update('phone', event.target.value)} placeholder="+595 981 123456" /></Field>
         <div className="form-grid"><Field label="Red social / usuario"><input maxLength={100} value={form.social} disabled={saving} onChange={event => update('social', event.target.value)} placeholder="Instagram @maria" /></Field><Field label="Talles preferidos"><input maxLength={120} value={form.preferredSize} disabled={saving} onChange={event => update('preferredSize', event.target.value)} placeholder="95, 100 / M" /></Field></div>
         <p className="inline-note">Estos datos se guardan en la base SQLite de tu notebook.</p>
         <div className="form-actions"><button className="btn btn-secondary" type="button" disabled={saving} onClick={() => setForm(null)}>Volver</button><button className="btn btn-primary" disabled={saving}>{saving ? 'Guardando…' : 'Guardar clienta'}</button></div>

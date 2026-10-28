@@ -1,5 +1,6 @@
 /** File operations use the notebook's SQLite database; browser storage is not authoritative. */
 import { api, apiBlob, dataChanged, mutate } from './api';
+import { configureCurrency, currencyCode } from '../domain/format';
 
 export type ImportKind = 'variants' | 'sales';
 export type ExportKind = ImportKind | 'expenses';
@@ -13,8 +14,8 @@ export const REQUIRED_HEADERS: Record<ImportKind, readonly string[]> = {
 export interface UploadedFile { fileName: string; contentBase64: string }
 export interface InspectedFile extends UploadedFile { headers: string[]; firstRows: Record<string,string>[]; rowCount: number }
 export interface ImportPreview { previewId: string; headers: string[]; rows: Record<string,string>[]; rowCount: number; errors: string[]; warnings: string[]; documentCount: number; ready: boolean; expiresInSeconds: number }
-export interface BackupValidation { counts: Record<string,number>; schemaVersion: number; formatVersion: number }
-export interface RestoreResult { counts: Record<string,number>; previousBackup: string }
+export interface BackupValidation { counts: Record<string,number>; schemaVersion: number; formatVersion: number; currency:'PYG'|'ARS' }
+export interface RestoreResult { counts: Record<string,number>; previousBackup: string; currency:'PYG'|'ARS' }
 export interface ImportResult { count: number; ids: string[] }
 
 const stamp = () => new Date().toISOString().replaceAll(':','-').replace(/\.\d{3}Z$/, 'Z');
@@ -40,6 +41,7 @@ async function replaceDatabase<T>(path: string, payload: unknown): Promise<T> {
   window.dispatchEvent(new Event('sadi:database-restoring'));
   try {
     const result = await api<T>(path, {method:'POST',body:JSON.stringify(payload)});
+    if(result&&typeof result==='object'&&'currency' in result&&(result.currency==='PYG'||result.currency==='ARS'))configureCurrency(result.currency);
     window.dispatchEvent(new Event('sadi:database-replaced'));
     dataChanged();
     return result;
@@ -71,8 +73,8 @@ export const previewImport = (file: UploadedFile, kind: ImportKind, mapping: Rec
 export const commitImport = (preview: ImportPreview, acknowledgeWarnings: boolean): Promise<ImportResult> =>
   mutate('/imports/apply', {previewId:preview.previewId,acknowledgeWarnings});
 export async function downloadTemplate(kind: ImportKind): Promise<void> {
-  download(await apiBlob(`/templates/${kind}`), `plantilla-${kind}.csv`);
+  download(await apiBlob(`/templates/${kind}`), `plantilla-${kind}-${currencyCode()}.csv`);
 }
 export async function exportTable(kind: ExportKind, format: ExportFormat): Promise<void> {
-  download(await apiBlob(`/exports?kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`), `sou-linda-${kind}.${format}`);
+  download(await apiBlob(`/exports?kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`), `sou-linda-${kind}-${currencyCode()}.${format}`);
 }

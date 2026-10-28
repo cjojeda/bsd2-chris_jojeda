@@ -65,10 +65,12 @@ def self_test() -> int:
     """Use a disposable database; never seed or modify the real business."""
     from sadi_local.services import SadiService
     from sadi_local.reports import monthly_report
+    from sadi_local.currency import initialize_business_currency
     from datetime import date
     with tempfile.TemporaryDirectory(prefix='sou-linda-check-') as folder:
         db = Database(Path(folder) / 'test.sqlite3')
         try:
+            assert initialize_business_currency(db) == 'PYG'
             service = SadiService(db)
             variant = service.save_variant(dict(model='Verificación', category='Prueba', sku='TEST', size='95', color='Rojo',
                 retail_cents=200000, wholesale_cents=150000, min_stock=1, initial_qty=10, initial_unit_cost_cents=100000))
@@ -80,7 +82,7 @@ def self_test() -> int:
             assert automatic_backup(db, 'verification') is not None
         finally:
             db.close()
-    print('Sou Linda System: SQLite, CPP, descuentos, rentabilidad y respaldo verificados.')
+    print('Sou Linda System: guaraníes PYG, SQLite, CPP, descuentos, rentabilidad y respaldo verificados.')
     return 0
 
 

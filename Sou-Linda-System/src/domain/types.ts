@@ -3,7 +3,7 @@ export const PAYMENT_METHODS = ['Efectivo', 'Transferencia', 'Tarjeta', 'QR', 'C
 export type Channel = typeof CHANNELS[number];
 export type PaymentMethod = typeof PAYMENT_METHODS[number];
 export type PaidMethod = Exclude<PaymentMethod, 'Crédito'>;
-/** All monetary fields use integer cents; dates use local YYYY-MM-DD. */
+/** Monetary fields use fixed-point scale 100; PYG amounts are multiples of 100. Dates use local YYYY-MM-DD. */
 export interface Product { id: string; name: string; category: string; createdAt: string }
 export interface Variant { id: string; productId: string; sku: string; size: string; color: string; cost: number; retailPrice: number; wholesalePrice: number; stock: number; reserved: number; available: number; inventoryValue: number; minStock: number; active: boolean }
 export interface Customer { id: string; name: string; phone: string; social: string; preferredSize: string; createdAt: string }

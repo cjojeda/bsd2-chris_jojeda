@@ -17,12 +17,18 @@ def parse_money(value: str) -> int:
     except (InvalidOperation, OverflowError):
         raise ValueError("El importe no es válido.") from None
 
-def format_money(cents: int | None) -> str:
+def format_money(cents: int | None, currency: str = 'ARS') -> str:
     if cents is None:
         return "Sin costo conocido"
     sign = "−" if cents < 0 else ""
     whole, fraction = divmod(abs(cents), 100)
     grouped = f"{whole:,}".replace(",", ".")
+    if currency == 'PYG':
+        if fraction:
+            raise ValueError('El importe en PYG debe representar guaraníes enteros.')
+        return f"{sign}₲ {grouped}"
+    if currency != 'ARS':
+        raise ValueError('Moneda no compatible.')
     return f"{sign}${grouped},{fraction:02d}"
 
 def percent_bps(value: str) -> int:

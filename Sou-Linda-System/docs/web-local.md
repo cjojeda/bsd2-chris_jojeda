@@ -31,6 +31,10 @@ No copies una base SQLite abierta arrastrando solo `sou-linda.sqlite3`: puede te
 
 La ventana del navegador se puede cerrar sin borrar la base. Borrar la caché del navegador tampoco elimina el negocio, aunque puede quitar la instalación PWA o preferencias de interfaz. Al cambiar de Windows, de notebook o formatear, restaurá un backup; no dependas de conservar la carpeta de instalación.
 
+## Moneda de Paraguay
+
+Los negocios nuevos usan **PYG, guaraníes enteros**. Escribí `50000` y el sistema mostrará `₲ 50.000`. Los porcentajes siguen admitiendo dos decimales. Las bases antiguas conservan su moneda identificada; consultá la [guía de guaraníes](guaranies.md) antes de reutilizar registros anteriores.
+
 ## Primeros pasos de negocio
 
 1. En **Inventario**, creá el modelo y cada combinación de talle y color. Asigná SKU, precios minorista/mayorista y mínimo de stock.
@@ -117,7 +121,7 @@ La aplicación no presupone una API de Treinta ni una posición fija de sus colu
 4. Conservá la misma **cuenta de origen** para futuras importaciones del mismo negocio. Junto con el identificador externo, permite detectar ventas repetidas.
 5. Revisá errores, advertencias y vista previa. Corregí el archivo o su mapeo antes de confirmar.
 
-Se admiten hasta **10 MB y 20.000 filas**. Los CSV pueden usar coma, punto y coma o tabulación y deben ser UTF-8. Usá importes como `1250,50` o `1250.50`, sin separador de miles. Usá fechas `AAAA-MM-DD` o `DD/MM/AAAA`. Convertí las fórmulas de Excel a valores antes de importar.
+Se admiten hasta **10 MB y 20.000 filas**. Los CSV pueden usar coma, punto y coma o tabulación y deben ser UTF-8. En PYG usá importes enteros como `50000`; el importador también reconoce `50.000` como agrupación de miles. Las fracciones de guaraní se rechazan. Usá fechas `AAAA-MM-DD` o `DD/MM/AAAA`. Convertí las fórmulas de Excel a valores antes de importar.
 
 Las filas con el mismo identificador externo forman un documento de venta. Los costos y cargos de pedido no deben repetirse como si fueran cargos distintos por artículo. Revisá las advertencias de agrupación y las plantillas descargadas.
 
