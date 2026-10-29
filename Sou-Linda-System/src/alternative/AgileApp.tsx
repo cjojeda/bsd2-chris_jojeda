@@ -58,6 +58,7 @@ export default function AgileApp(){
 
   if(!data)return <main className="ag-app ag-connection-screen"><span className="ag-logo">S</span><h1>Sou Linda System</h1>{error?<><p role="alert">{error}</p><p>Abrí el motor local en la notebook para continuar.</p><button className="btn btn-primary" onClick={retry}><RefreshCw size={17}/>Reintentar</button></>:<p role="status">Preparando tu negocio…</p>}<a href="/">Abrir vista Clásica</a></main>;
   const isDemo=data.settings.some(setting=>setting.key==='demo'&&setting.value==='true');
+  const isBeta=data.settings.some(setting=>setting.key==='runtime_mode'&&setting.value==='beta');
   const empty=!data.products.length&&!data.sales.length&&!data.customers.length&&!data.expenses.length;
   const attention=data.variants.filter(variant=>variant.active&&variant.available<=variant.minStock).length;
   const activePage=page==='expenses'?'cash':page;
@@ -71,10 +72,11 @@ export default function AgileApp(){
       <button className="ag-sale-button" onClick={()=>go('pos')}><Plus size={20}/><span>Registrar venta</span><kbd>F2</kbd></button>
       <p className="ag-nav-heading">MI NEGOCIO</p>
       <nav aria-label="Navegación de Sou Linda Ágil">{navigation.map(({page:target,label,icon:Icon})=><button key={target} className={`ag-nav-item ${activePage===target?'is-active':''}`} onClick={()=>go(target)} aria-current={activePage===target?'page':undefined}><Icon size={19}/><span>{label}</span>{target==='inventory'&&attention>0&&<span className="ag-nav-count">{attention}</span>}</button>)}</nav>
-      <div className="ag-sidebar-bottom"><div className="ag-local-note"><ShieldCheck size={20}/><div><strong>Tu negocio queda con vos</strong><p>Datos guardados en tu notebook.</p></div></div><a className="ag-switch" href="/"><ArrowLeftRight size={16}/><span>Probar vista Clásica</span><ArrowUpRight size={14}/></a><div className="ag-edition"><span className="ag-edition-dot"/>Vista Ágil <span>v0.5.0</span></div></div>
+      <div className="ag-sidebar-bottom"><div className="ag-local-note"><ShieldCheck size={20}/><div><strong>Tu negocio queda con vos</strong><p>Datos guardados en tu notebook.</p></div></div><a className="ag-switch" href="/"><ArrowLeftRight size={16}/><span>Probar vista Clásica</span><ArrowUpRight size={14}/></a><div className="ag-edition"><span className="ag-edition-dot"/>Vista Ágil <span>v0.5.1-beta.1</span></div></div>
     </aside>
     <div className="ag-body"><header className="ag-topbar"><div className="ag-crumb"><button className="icon-btn ag-menu-toggle" aria-label="Abrir menú" onClick={()=>setDrawer(true)}><Menu size={22}/></button><span>Mi lencería</span><span>/</span><strong>{title}</strong></div><div className="ag-topbar-actions"><span className={`ag-connection ${error?'is-offline':''}`}><i/>{error?'Motor sin conexión':'Guardado en notebook'}</span><button className="ag-backup-top" onClick={backup}><Download size={16}/><span>Respaldar</span></button><span className="ag-profile" aria-label="Negocio local">SL</span></div></header>
       <main className={`ag-main ${page==='pos'?'ag-main-pos':''}`}>
+        {isBeta&&<div className="info-banner report-warning" role="status"><Sparkles size={17}/><span><strong>BETA DE PRUEBA</strong> · Explorá Sou Linda. Tus cambios se guardan en este entorno de prueba.</span></div>}
         {currencyCode()==='ARS'&&<div className="info-banner report-warning" role="status">Esta base conserva importes de la versión en pesos argentinos (ARS). No se convirtieron a guaraníes. Para empezar la tienda paraguaya, usá una base nueva en PYG y conservá un respaldo de esta base.</div>}
         {error&&<div className="report-error" role="alert">{error}<button className="text-button" onClick={retry}>Reintentar</button></div>}
         {isDemo&&<div className="ag-demo"><Sparkles size={15}/><span>Datos de ejemplo. Explorá todas las funciones antes de cargar tu negocio.</span><button onClick={()=>go('backup')}>Administrar demo<ArrowUpRight size={14}/></button></div>}

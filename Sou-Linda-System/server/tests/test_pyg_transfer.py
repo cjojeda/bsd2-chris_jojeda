@@ -152,4 +152,7 @@ def test_web_clearing_legacy_demo_initializes_empty_paraguayan_business(tmp_path
         result = client.post('/api/demo/clear', headers=headers, json={'confirmation': 'ELIMINAR'})
         assert result.status_code == 200, result.text
         assert result.json()['currency'] == 'PYG'
-        assert client.get('/api/snapshot').json()['settings'] == [{'key': 'currency', 'value': 'PYG'}]
+        assert client.get('/api/snapshot').json()['settings'] == [
+            {'key': 'currency', 'value': 'PYG'},
+            {'key': 'runtime_mode', 'value': 'standard'},
+        ]

@@ -4,6 +4,12 @@ Aplicación web para administrar una lencería de Paraguay en **guaraníes (PYG,
 
 El celular puede consultar **reportes de solo lectura en la misma Wi-Fi**, cuando la notebook está encendida y el motor local está abierto. Este proyecto no sincroniza el negocio con una nube ni habilita acceso desde Internet.
 
+## Beta 1 para probar
+
+La versión de código actual es **0.5.1-beta.1**. Abrí **Probar-Sou-Linda-Beta.cmd** para iniciar la vista Ágil con ejemplos ficticios en guaraníes. Esta beta usa la carpeta `SouLindaSystemBeta`, el puerto 8766 y una sesión independiente; conserva tus cambios al reiniciar y no abre la base normal del negocio. Los ejemplos se cargan solo en la primera apertura.
+
+La [guía de prueba](LEEME-BETA.md) explica cómo abrirla en Windows. El [registro técnico de la beta](docs/beta-1.md) detalla el aislamiento y las verificaciones. El paquete beta incluye la interfaz compilada y no requiere Node.js. La edición 0.5.0 sigue disponible como descarga separada en el repositorio.
+
 ## Dos vistas para elegir
 
 **Sou Linda System** conserva la vista **Clásica** e incorpora la alternativa **Ágil**, orientada a las tareas del día: registrar ventas y gastos, revisar caja, stock por talle/color, fiados y reportes. Ambas comparten una única base local y el mismo motor financiero.

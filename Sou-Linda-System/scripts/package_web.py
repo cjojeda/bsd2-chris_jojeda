@@ -10,14 +10,15 @@ ROOT = Path(__file__).resolve().parents[1]
 TREES = ('src', 'public', 'dist', 'server/src', 'server/tests', 'server/docs', 'scripts', 'tests-web', 'tests-browser')
 FILES = ('README.md', 'index.html', 'package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts',
          'Iniciar-Sou-Linda-System.cmd', 'Compartir-reportes-en-celular.cmd', 'Abrir-Sou-Linda-Agil.cmd',
+         'Probar-Sou-Linda-Beta.cmd', 'Probar-Beta-Con-Celular.cmd', 'LEEME-BETA.md',
          'server/run.py', 'server/requirements.txt', 'server/requirements-dev.txt', 'server/pyproject.toml',
-         'docs/web-local.md', 'docs/architecture-web.md', 'docs/validacion.md', 'docs/alternativa-agil.md', 'docs/referencias-treinta.md', 'docs/guaranies.md',
+         'docs/web-local.md', 'docs/architecture-web.md', 'docs/validacion.md', 'docs/alternativa-agil.md', 'docs/referencias-treinta.md', 'docs/guaranies.md', 'docs/beta-1.md',
          '.github/workflows/web-local.yml')
 
 
 def main():
     parser = argparse.ArgumentParser(description='Empaquetar Sou Linda System web local')
-    parser.add_argument('--output', type=Path, default=ROOT.parent / 'Sou-Linda-System-Guaranies.zip')
+    parser.add_argument('--output', type=Path, default=ROOT.parent / 'Sou-Linda-System-0.5.1-beta.1-Fuentes.zip')
     args = parser.parse_args()
     if not (ROOT / 'dist/index.html').is_file():
         parser.error('Compilá la interfaz con npm run build antes de empaquetar.')

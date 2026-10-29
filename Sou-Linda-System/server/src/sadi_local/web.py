@@ -24,6 +24,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from . import __version__
 from .db import Database
 from .currency import currency_code, initialize_business_currency, validate_amount
 from .demo import seed_demo
@@ -169,7 +170,10 @@ def _mobile_projection(report):
     return result
 
 
-def create_app(db_path, static_dir=None, allow_mobile=False, allowed_hosts=None, report_addresses=None):
+def create_app(db_path, static_dir=None, allow_mobile=False, allowed_hosts=None, report_addresses=None, beta_mode=False):
+    # Browsers share cookies across ports on a host. Give the test edition its
+    # own cookie so it can run beside the normal notebook application.
+    session_cookie = 'sadi_beta_session' if beta_mode else SESSION_COOKIE
     allowed, addresses = _host_config(allowed_hosts, report_addresses)
     database_path = str(db_path)
     auth_path = None if database_path == ':memory:' else Path(db_path).resolve().parent / 'web-auth.json'
@@ -192,17 +196,18 @@ def create_app(db_path, static_dir=None, allow_mobile=False, allowed_hosts=None,
         finally:
             db.close()
 
-    app = FastAPI(title='Sou Linda System', version='0.5.0', lifespan=lifespan,
+    app = FastAPI(title='Sou Linda System', version=__version__, lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None)
     app.state.allow_mobile = bool(allow_mobile)
     app.state.report_addresses = addresses
+    app.state.beta_mode = bool(beta_mode)
 
     async def require_admin(request: Request):
         if not _loopback(request):
             raise HTTPException(403, 'La administración está disponible únicamente desde la notebook.')
         if not _same_origin(request):
             raise HTTPException(403, 'Origen de solicitud no permitido.')
-        if not _same_secret(request.cookies.get(SESSION_COOKIE), request.app.state.session_token):
+        if not _same_secret(request.cookies.get(session_cookie), request.app.state.session_token):
             raise HTTPException(401, 'Abrí Sou Linda System desde la notebook para iniciar la sesión local.')
         if request.method in MUTATING_METHODS and not _same_secret(request.headers.get(CSRF_HEADER), request.app.state.csrf_token):
             raise HTTPException(403, 'La sesión de escritura no es válida. Recargá Sou Linda System.')
@@ -276,13 +281,19 @@ def create_app(db_path, static_dir=None, allow_mobile=False, allowed_hosts=None,
         if not _loopback(request) or not _same_origin(request):
             raise HTTPException(403, 'La sesión de administración solo se abre desde la notebook.')
         response = JSONResponse({'csrfToken': request.app.state.csrf_token})
-        response.set_cookie(SESSION_COOKIE, request.app.state.session_token, httponly=True,
+        response.set_cookie(session_cookie, request.app.state.session_token, httponly=True,
                             samesite='strict', secure=request.url.scheme == 'https', path='/')
         return response
 
     @app.get('/api/snapshot', dependencies=[Depends(require_admin)])
     async def snapshot(request: Request):
-        return normalize_snapshot(request.app.state.db, request.app.state.service)
+        result = normalize_snapshot(request.app.state.db, request.app.state.service)
+        # The edition belongs to this running server, never to a restored file.
+        # Keeping it out of SQLite also keeps a beta-only label out of backups.
+        result['settings'] = [setting for setting in result['settings'] if setting['key'] != 'runtime_mode']
+        result['settings'].append({'key': 'runtime_mode',
+                                   'value': 'beta' if request.app.state.beta_mode else 'standard'})
+        return result
 
     @app.get('/api/sales/{sale_id}', dependencies=[Depends(require_admin)])
     async def sale_detail(sale_id: str, request: Request):
